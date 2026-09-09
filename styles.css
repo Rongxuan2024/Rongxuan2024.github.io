@@ -466,6 +466,12 @@ nav.top-nav ul li a:focus-visible {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
+/* Landscape clips in square tiles — slight zoom + vertical framing */
+.project:has(source[src*="VibeXRGallery"]) video {
+    object-position: center 28%;
+    transform: translate(-50%, -50%) scale(1.06);
+}
+
 .codepen-canvas-card {
     background:
         radial-gradient(circle at 18% 18%, rgba(255, 221, 64, 0.3), transparent 22%),

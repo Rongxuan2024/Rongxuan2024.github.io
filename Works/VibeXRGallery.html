@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeXR Gallery - Rongxuan Portfolio</title>
+    <link rel="stylesheet" href="../project-styles.css?v=3">
+    <link rel="stylesheet" href="../styles.css?v=13">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" href="../Resources/common/Rongxuan.jpeg" type="image/x-icon">
+    <script src="../darkmode.js"></script>
+    <script src="../metaballs.js?v=22" defer></script>
+    <meta name="description" content="VibeXR Gallery collects Rongxuan Mu's immersive WebXR canvases — living particle reconstructions of Starry Night and Impression, Sunrise.">
+    <style>
+        .vibexr-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+            margin-top: 1.5rem;
+        }
+
+        .vibexr-card {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e6e6e6;
+            border-radius: 8px;
+            background: #fff;
+            color: inherit;
+        }
+
+        .vibexr-card video {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+            background: #111;
+            display: block;
+        }
+
+        .vibexr-meta {
+            padding: 16px 18px 18px;
+        }
+
+        .vibexr-meta h3 {
+            margin: 0 0 0.5rem;
+            border: none;
+            padding: 0;
+            font-size: 1.2rem;
+        }
+
+        .vibexr-meta p {
+            margin: 0;
+            color: #666;
+            font-size: 0.92rem;
+            text-align: left;
+        }
+
+        .dark-mode .vibexr-card {
+            background: rgba(26, 26, 26, 0.7) !important;
+            border-color: #333 !important;
+        }
+
+        .dark-mode .vibexr-meta p {
+            color: #aaa !important;
+        }
+
+        @media (max-width: 768px) {
+            .vibexr-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="../index.html">← Home</a></li>
+        </ul>
+    </nav>
+
+    <div class="dark-mode-toggle-container">
+        <button id="darkModeToggle" aria-label="Toggle dark mode">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <header>
+        <div class="image-container">
+            <video autoplay muted loop playsinline preload="metadata" poster="../Resources/vibexr/StarryNight.jpg">
+                <source src="../Resources/vibexr/StarryNight.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    </header>
+
+    <main>
+        <section id="overview">
+            <h1>VibeXR Gallery</h1>
+            <h2>Immersive canvases you can step into</h2>
+            <p>
+                <strong>VibeXR Gallery</strong> collects living WebXR reconstructions of familiar paintings.
+                Each piece turns a historical canvas into a room-scale field of brushstrokes: you can stir
+                the pigment in the browser, or enter immersive mode with a headset and move through the scene
+                with 6DoF tracking and optional hand tracking.
+            </p>
+            <p>
+                These studies sit between <strong>spatial design</strong>, <strong>procedural graphics</strong>,
+                and <strong>XR interaction</strong>. The goal is not a still reproduction, but a space you can
+                inhabit — art that responds when you reach toward it.
+            </p>
+        </section>
+
+        <section id="gallery">
+            <h2>Gallery</h2>
+            <div class="vibexr-grid">
+                <article class="vibexr-card">
+                    <video autoplay muted loop playsinline controls preload="metadata" poster="../Resources/vibexr/StarryNight.jpg">
+                        <source src="../Resources/vibexr/StarryNight.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="vibexr-meta">
+                        <h3>Starry Night</h3>
+                        <p>
+                            A Van Gogh-inspired night sky of swirling blue and gold particles. Move to stir the stars,
+                            pinch to gather them, and step inside a cypress-lined village of living brushstrokes.
+                        </p>
+                    </div>
+                </article>
+                <article class="vibexr-card">
+                    <video autoplay muted loop playsinline controls preload="metadata" poster="../Resources/vibexr/MonetSunrise.jpg">
+                        <source src="../Resources/vibexr/MonetSunrise.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="vibexr-meta">
+                        <h3>Impression, Sunrise</h3>
+                        <p>
+                            A Monet-inspired harbor between night and day. Layered silhouettes, animated water, and
+                            nearby spatial pigment reconstruct the 1872 painting as a stereo WebXR sunrise.
+                        </p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section id="contact">
+            <div class="social-media">
+                <a href="https://www.linkedin.com/in/rongxuanmu/" target="_blank"><i class="fab fa-linkedin"></i></a>
+                <a href="https://github.com/RongxuanMu" target="_blank"><i class="fab fa-github"></i></a>
+                <a href="https://codepen.io/MuRongxuan" target="_blank"><i class="fab fa-codepen"></i></a>
+                <a href="https://space.bilibili.com/391939640" target="_blank"><i class="fab fa-bilibili"></i></a>
+                <a href="https://www.youtube.com/@Xrchitect_Rong" target="_blank"><i class="fab fa-youtube"></i></a>
+                <a href="https://murongxuan.itch.io/" target="_blank"><i class="fab fa-itch-io"></i></a>
+                <a href="mailto:rongxuanmu@foxmail.com"><i class="fas fa-envelope"></i></a>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Rongxuan Mu. All rights reserved.</p>
+    </footer>
+</body>
+</html>
