@@ -27,6 +27,19 @@
             border-radius: 8px;
             background: #fff;
             color: inherit;
+            text-decoration: none;
+        }
+
+        a.vibexr-card:hover {
+            border-color: #cfcfcf;
+        }
+
+        .vibexr-open {
+            display: inline-block;
+            margin-top: 0.85rem;
+            color: #0066cc;
+            font-size: 0.88rem;
+            font-weight: 600;
         }
 
         .vibexr-card video {
@@ -63,6 +76,14 @@
 
         .dark-mode .vibexr-meta p {
             color: #aaa !important;
+        }
+
+        .dark-mode a.vibexr-card:hover {
+            border-color: #555 !important;
+        }
+
+        .dark-mode .vibexr-open {
+            color: #8ab4f8;
         }
 
         @media (max-width: 768px) {
@@ -116,8 +137,8 @@
         <section id="gallery">
             <h2>Gallery</h2>
             <div class="vibexr-grid">
-                <article class="vibexr-card">
-                    <video autoplay muted loop playsinline controls preload="metadata" poster="../Resources/vibexr/StarryNight.jpg">
+                <a class="vibexr-card" href="StarryNightWebXR.html" target="_blank" rel="noopener noreferrer" aria-label="Open Starry Night WebXR canvas">
+                    <video autoplay muted loop playsinline preload="metadata" poster="../Resources/vibexr/StarryNight.jpg">
                         <source src="../Resources/vibexr/StarryNight.mp4" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>
@@ -127,10 +148,11 @@
                             A Van Gogh-inspired night sky of swirling blue and gold particles. Move to stir the stars,
                             pinch to gather them, and step inside a cypress-lined village of living brushstrokes.
                         </p>
+                        <span class="vibexr-open">Open live canvas ↗</span>
                     </div>
-                </article>
-                <article class="vibexr-card">
-                    <video autoplay muted loop playsinline controls preload="metadata" poster="../Resources/vibexr/MonetSunrise.jpg">
+                </a>
+                <a class="vibexr-card" href="MonetSunriseWebXR.html" target="_blank" rel="noopener noreferrer" aria-label="Open Impression Sunrise WebXR canvas">
+                    <video autoplay muted loop playsinline preload="metadata" poster="../Resources/vibexr/MonetSunrise.jpg">
                         <source src="../Resources/vibexr/MonetSunrise.mp4" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>
@@ -140,8 +162,9 @@
                             A Monet-inspired harbor between night and day. Layered silhouettes, animated water, and
                             nearby spatial pigment reconstruct the 1872 painting as a stereo WebXR sunrise.
                         </p>
+                        <span class="vibexr-open">Open live canvas ↗</span>
                     </div>
-                </article>
+                </a>
             </div>
         </section>
 

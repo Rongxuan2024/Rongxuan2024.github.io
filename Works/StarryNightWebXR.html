@@ -1,0 +1,1178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swirling Night</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Karla:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --night: #060d22;
+    --indigo: #0a1637;
+    --cobalt: #1c3f8f;
+    --sky: #5b93d6;
+    --pale: #a9c8e8;
+    --gold: #f6d76b;
+    --ivory: #fbf1c2;
+    --ink: #e7e3d5;
+    --ink-dim: rgba(231, 227, 213, 0.62);
+    --placard: rgba(6, 13, 34, 0.72);
+    --font-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --font-body: "Karla", "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--night);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+  .placard {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    max-width: 350px;
+    padding: 18px 22px 20px;
+    background: var(--placard);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(169, 200, 232, 0.18);
+    border-radius: 3px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .placard.hidden { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 6px;
+  }
+  .placard h1 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .placard p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-dim); }
+  .placard p + p { margin-top: 6px; }
+  .placard b { color: var(--ink); font-weight: 600; }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+  button.vr {
+    font: 600 13px/1 var(--font-body);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--indigo);
+    background: var(--gold);
+    border: 0;
+    border-radius: 2px;
+    padding: 12px 18px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
+  button.vr:hover { background: var(--ivory); }
+  button.vr:active { transform: translateY(1px); }
+  button.vr:focus-visible { outline: 2px solid var(--pale); outline-offset: 3px; }
+  button.vr[disabled] { background: rgba(246, 215, 107, 0.35); color: rgba(6, 13, 34, 0.7); cursor: default; }
+  button.ghost {
+    font: 500 12.5px/1 var(--font-body);
+    color: var(--pale);
+    background: transparent;
+    border: 1px solid rgba(169, 200, 232, 0.35);
+    border-radius: 2px;
+    padding: 11px 14px;
+    cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--pale); }
+  button.ghost:focus-visible { outline: 2px solid var(--pale); outline-offset: 3px; }
+  .shapes { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
+  .shapes button {
+    font: 600 11.5px/1 var(--font-body);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pale);
+    background: transparent;
+    border: 1px solid rgba(169, 200, 232, 0.35);
+    border-radius: 2px;
+    padding: 8px 11px;
+    cursor: pointer;
+  }
+  .shapes button.on { background: var(--gold); border-color: var(--gold); color: var(--indigo); }
+  .shapes button:focus-visible { outline: 2px solid var(--pale); outline-offset: 2px; }
+  .shapes .keys { font-size: 11px; color: var(--ink-dim); margin-left: auto; letter-spacing: 0.04em; }
+  .status { font-size: 12px; color: var(--ink-dim); width: 100%; margin-top: 4px; }
+
+  .hint {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    font-size: 12px;
+    color: var(--ink-dim);
+    letter-spacing: 0.02em;
+    text-align: right;
+    max-width: 260px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 0.5s ease;
+  }
+  .hint.hidden { opacity: 0; pointer-events: none; }
+  .hint b { color: var(--pale); font-weight: 500; }
+
+  @media (max-width: 640px) {
+    .placard { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .placard, .hint, button.vr { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<aside class="placard" id="placard">
+  <p class="eyebrow">WebXR · immersive-vr · hand-tracking</p>
+  <h1>Swirling Night</h1>
+  <p>Everything here is a particle: 24,000 small lamps carried by the flow at their own depths, 4,000 more orbiting the stars and moon, and a still cloud of 30,000 grains for the ground, hills, village and cypress. The sky behind them is empty gloom.</p>
+  <p><b>Hands:</b> your joints are drawn as you move. <b>Pinch</b> and hold to stir a vortex where you're pinching; left-hand pinches spin the other way. <b>Turn a palm toward your face</b> to open the hand menu, and poke it with the other index finger: gather the whole scene — sky, village, cypress and all — into a floating <b>sphere</b> or <b>cube</b>, or let it back out into the <b>dome</b>. <b>Pinch inside the volume</b> and drag to carry it anywhere in the room.</p>
+  <p><b>See-through</b> opens a passthrough session on headsets that offer one: the volume floats in your real room and the gloom is gone. The hand menu has the same toggle, so you can bring the gloom back and forth without leaving the session.</p>
+  <div class="shapes" role="group" aria-label="Particle shape">
+    <button data-shape="0" class="on">Dome</button><button data-shape="1">Sphere</button><button data-shape="2">Cube</button>
+    <span class="keys">keys 1 · 2 · 3</span>
+  </div>
+  <div class="actions">
+    <button class="vr" id="vrBtn" disabled>Checking headset…</button>
+    <button class="vr" id="arBtn" hidden>See-through</button>
+    <button class="ghost" id="openBtn" hidden>Open in its own tab</button>
+    <div class="status" id="status"></div>
+  </div>
+</aside>
+
+<div class="hint" id="hint">
+  <b>Desktop preview</b> — drag to look around.<br>Press and hold (without dragging) to stir the sky where you point.<br><span id="fps"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- renderer / scene ---------- */
+  const stage = document.getElementById('stage');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setClearColor(0x060d22, 1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  renderer.xr.setReferenceSpaceType('local-floor');
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = null;
+
+  const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 1200);
+  camera.position.set(0, 1.6, 0);
+  const rig = new THREE.Group();
+  rig.add(camera);
+  scene.add(rig);
+
+  /* ---------- shared GLSL ---------- */
+  const MAXV = 8;
+  const NSTAR = 11;
+
+  const glslCommon = `
+    const vec3 DEEP   = vec3(0.039, 0.086, 0.216);
+    const vec3 COBALT = vec3(0.110, 0.247, 0.561);
+    const vec3 SKY    = vec3(0.357, 0.576, 0.839);
+    const vec3 PALE   = vec3(0.663, 0.784, 0.910);
+    const vec3 GOLD   = vec3(0.965, 0.843, 0.420);
+    const vec3 IVORY  = vec3(0.984, 0.945, 0.760);
+
+    uniform float uTime;
+    uniform vec3  uVDir[${MAXV}];
+    uniform vec4  uVPar[${MAXV}];   // x strength, y radius, z spin sign, w phase
+    uniform int   uVCount;
+    uniform vec3  uStar[${NSTAR}];
+    uniform vec2  uStarP[${NSTAR}]; // x angular size, y brightness
+    uniform vec3  uMoon;
+
+    float hash1(float n) { return fract(sin(n) * 43758.5453123); }
+    float hash3(vec3 p) {
+      p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+      p *= 17.0;
+      return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+    }
+    float noise3(vec3 p) {
+      vec3 i = floor(p);
+      vec3 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(
+        mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x), mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
+        mix(mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x), mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x), f.y),
+        f.z);
+    }
+    float fbm(vec3 p) {
+      float a = 0.5, s = 0.0;
+      for (int i = 0; i < 4; i++) {
+        s += a * noise3(p);
+        p = p * 2.03 + vec3(1.7, 9.2, 3.1);
+        a *= 0.5;
+      }
+      return s;
+    }
+    vec3 rotAxis(vec3 v, vec3 ax, float a) {
+      float c = cos(a), s = sin(a);
+      return v * c + cross(ax, v) * s + ax * dot(ax, v) * (1.0 - c);
+    }
+    // The paint's colour field: where the sky is bright vs deep.
+    float field(vec3 p) {
+      vec3 q = p * 2.3;
+      float n1 = fbm(q);
+      float n2 = fbm(q + vec3(5.2, 1.3, 2.8));
+      return smoothstep(0.30, 0.86, fbm(q + 1.7 * vec3(n1, n2, n1 * 0.6 + n2 * 0.4)));
+    }
+    vec3 paint(float v) {
+      vec3 col = mix(DEEP * 0.8, COBALT, smoothstep(0.0, 0.6, v));
+      col = mix(col, SKY,  smoothstep(0.55, 0.95, v) * 0.85);
+      col = mix(col, PALE, smoothstep(0.9, 1.0, v) * 0.4);
+      return col;
+    }
+    // Carry a point on the dome along the vortex field for 'age' seconds.
+    vec3 advect(vec3 p, float age) {
+      for (int i = 0; i < ${MAXV}; i++) {
+        if (i >= uVCount) break;
+        vec3 ax = uVDir[i];
+        vec4 P  = uVPar[i];
+        float ang  = acos(clamp(dot(p, ax), -1.0, 1.0));
+        float fall = exp(-ang * ang / (2.0 * P.y * P.y));
+        float rot  = fall * P.z * (P.x * 0.55 * age + P.x * 0.25 * sin(P.w + age * 0.7));
+        p = rotAxis(p, ax, rot);
+      }
+      p = rotAxis(p, vec3(0.0, 1.0, 0.0), age * 0.012);       // the slow wind that turns the whole sky
+      vec3 nz = vec3(noise3(p * 3.0 + 1.3), noise3(p * 3.0 + 7.1), noise3(p * 3.0 + 13.7)) - 0.5;
+      return normalize(p + nz * 0.05 * min(age, 4.0));         // wandering, so the strokes don't stay in rank
+    }`;
+
+  /* ---------- the gloom: a dark, empty dome — every light in the scene is a particle ---------- */
+  const skyVert = `
+    varying vec3 vDir;
+    void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+  const skyFrag = `
+    precision highp float;
+    varying vec3 vDir;
+    void main() {
+      vec3 d = normalize(vDir);
+      vec3 zenith  = vec3(0.008, 0.012, 0.035);
+      vec3 horizon = vec3(0.028, 0.045, 0.095);
+      vec3 col = mix(horizon, zenith, smoothstep(-0.05, 0.75, d.y));
+      col = mix(col, vec3(0.006, 0.009, 0.02), smoothstep(0.02, -0.15, d.y));
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+
+  /* ---------- the sky particles ---------- */
+  // Small glowing balls carried by the flow, drawn as instanced low-poly spheres. A second population is
+  // bound to the stars: it orbits each one, so the halos are made of the same stuff as the sky.
+  const N_SKY = 20000;
+  const N_STAR = 4200;
+  const N = N_SKY + N_STAR;
+  const DOME = 480.0;
+
+  const glowFrag = `
+    precision highp float;
+    varying vec3  vColor;
+    varying vec3  vNormal;
+    varying vec3  vView;
+    varying float vGlow;
+    void main() {
+      vec3 n = normalize(vNormal);
+      float nv = max(dot(n, normalize(vView)), 0.0);
+      // a bright core that dims toward the silhouette: a small lamp seen through fog
+      float lamp = 0.14 + 1.0 * pow(nv, 1.5);
+      gl_FragColor = vec4(vColor * lamp * vGlow, 1.0);
+    }`;
+
+  const dabVert = `
+    precision highp float;
+    ${glslCommon}
+    attribute float seed;        // per instance
+    attribute float kind;        // 0 sky, 1 star-bound
+    uniform float uSize;         // ball radius, world units at dome radius
+    uniform int   uShapeA;       // 0 dome, 1 sphere, 2 cube — the shape we are leaving
+    uniform int   uShapeB;       // the shape we are arriving at
+    uniform float uBlend;        // 0 = all A, 1 = all B
+    uniform vec3  uVolCenter;    // where the volumetric shapes float
+    uniform float uVolR;         // their half-size, metres
+    varying vec3  vColor;
+    varying vec3  vNormal;
+    varying vec3  vView;
+    varying float vGlow;
+
+    vec3 spawn(float s, float cycle) {
+      float h1 = hash1(s * 91.7 + cycle * 13.1);
+      float h2 = hash1(s * 57.3 + cycle * 7.3 + 3.0);
+      float y  = mix(-0.12, 1.0, h1);
+      float az = h2 * 6.2831853;
+      float r  = sqrt(max(0.0, 1.0 - y * y));
+      return vec3(r * cos(az), y, r * sin(az));
+    }
+    // a point inside the unit ball or the unit cube
+    vec3 spawnVol(float s, float cycle, int shape) {
+      float h1 = hash1(s * 91.7 + cycle * 13.1);
+      float h2 = hash1(s * 57.3 + cycle * 7.3 + 3.0);
+      float h3 = hash1(s * 73.9 + cycle * 3.7 + 7.0);
+      if (shape == 2) return vec3(h1 * 2.0 - 1.0, mix(-0.3, 1.0, h2), h3 * 2.0 - 1.0);
+      float y = mix(-0.3, 1.0, h1), az = h2 * 6.2831853, r = sqrt(max(0.0, 1.0 - y * y));
+      return vec3(r * cos(az), y, r * sin(az)) * pow(h3, 0.3333);
+    }
+    vec3 confine(vec3 p, int shape) {
+      if (shape == 2) return clamp(p, -1.0, 1.0);                // grains pile up on the faces: the cube reads as a cube
+      return p / max(1.0, length(p));
+    }
+    // the same vortex field, but filling a volume: falloff by distance from the axis line
+    vec3 advectVol(vec3 p, float age, int shape) {
+      for (int i = 0; i < ${MAXV}; i++) {
+        if (i >= uVCount) break;
+        vec3 ax = uVDir[i];
+        vec4 P  = uVPar[i];
+        float d = length(p - ax * dot(p, ax));
+        float fall = exp(-d * d / (2.0 * P.y * P.y));
+        float rot  = fall * P.z * (P.x * 0.55 * age + P.x * 0.25 * sin(P.w + age * 0.7));
+        p = rotAxis(p, ax, rot);
+      }
+      p = rotAxis(p, vec3(0.0, 1.0, 0.0), age * 0.012);
+      vec3 nz = vec3(noise3(p * 3.0 + 1.3), noise3(p * 3.0 + 7.1), noise3(p * 3.0 + 13.7)) - 0.5;
+      return confine(p + nz * 0.05 * min(age, 4.0), shape);
+    }
+    vec3 turntable(vec3 p) { return rotAxis(p, vec3(0.0, 1.0, 0.0), uTime * 0.07); }
+
+    // Where does a sky particle sit, for a given shape? World head/tail, radius, the shape's normal, colour field.
+    void placeSky(int shape, float age, float cycle, float size, out vec3 hp, out vec3 tp, out float w, out vec3 nrm, out float maxLen, out float hfade, out float v) {
+      if (shape == 0) {
+        vec3 p0 = spawn(seed, cycle);
+        vec3 head = advect(p0, age);
+        vec3 tail = advect(p0, max(age - 0.12, 0.0));
+        float R = ${DOME.toFixed(1)} * mix(0.55, 1.0, hash1(seed * 6.3));
+        hp = head * R; tp = tail * R; w = size * R / ${DOME.toFixed(1)}; nrm = head;
+        maxLen = R * 0.2; hfade = smoothstep(-0.16, -0.02, head.y); v = field(p0);
+      } else {
+        vec3 p0 = spawnVol(seed, cycle, shape);
+        vec3 head = turntable(advectVol(p0, age, shape));
+        vec3 tail = turntable(advectVol(p0, max(age - 0.12, 0.0), shape));
+        hp = uVolCenter + head * uVolR; tp = uVolCenter + tail * uVolR;
+        w = size * uVolR * 0.0065; nrm = normalize(head + vec3(0.0, 1e-4, 0.0));
+        maxLen = uVolR * 0.3; hfade = 1.0; v = field(p0 * 1.6);
+      }
+    }
+    void placeStar(int shape, vec3 head, vec3 tail, float size, out vec3 hp, out vec3 tp, out float w, out vec3 nrm, out float maxLen) {
+      if (shape == 0) {
+        float R = ${DOME.toFixed(1)} * mix(0.6, 0.95, hash1(seed * 6.3));
+        hp = head * R; tp = tail * R; w = size * R / ${DOME.toFixed(1)}; nrm = head; maxLen = R * 0.2;
+      } else {
+        vec3 h = turntable(head), t = turntable(tail);
+        float rr = uVolR * mix(0.45, 0.62, hash1(seed * 6.3));
+        hp = uVolCenter + h * rr; tp = uVolCenter + t * rr;
+        w = size * uVolR * 0.0055; nrm = h; maxLen = uVolR * 0.3;
+      }
+    }
+
+    void main() {
+      float life  = mix(4.0, 8.0, hash1(seed * 3.1));
+      float u     = uTime / life + seed;
+      float cycle = floor(u);
+      float age   = fract(u) * life;
+      float f     = fract(u);
+      float e     = smoothstep(0.0, 1.0, uBlend);
+
+      vec3 hp, tp, nrm, col;
+      float w, maxLen, hfade, glow;
+
+      if (kind < 0.5) {
+        float size = uSize * (0.6 + 0.8 * hash1(seed * 4.4));
+        float v;
+        placeSky(uShapeA, age, cycle, size, hp, tp, w, nrm, maxLen, hfade, v);
+        if (uBlend > 0.001) {
+          vec3 hp2, tp2, nrm2; float w2, maxLen2, hfade2, v2;
+          placeSky(uShapeB, age, cycle, size, hp2, tp2, w2, nrm2, maxLen2, hfade2, v2);
+          hp = mix(hp, hp2, e); tp = mix(tp, tp2, e); w = mix(w, w2, e); nrm = normalize(mix(nrm, nrm2, e));
+          maxLen = max(maxLen, maxLen2) * 4.0; hfade = mix(hfade, hfade2, e); v = mix(v, v2, e);
+        }
+        col = paint(v) * 1.15 + SKY * 0.25 * smoothstep(0.6, 1.0, v);
+        col *= 0.8 + 0.4 * hash1(seed * 2.3);
+        glow = mix(0.7, 1.7, smoothstep(0.3, 1.0, v));           // the bright paint carries the light
+      } else {
+        // pick a light (11 stars + the moon), settle at some distance around it, orbit it
+        float pick = floor(hash1(seed * 17.9) * 12.0);
+        vec3 c = uMoon; float sz = 0.085; float br = 1.2;
+        for (int i = 0; i < ${NSTAR}; i++) { if (float(i) == pick) { c = uStar[i]; sz = uStarP[i].x; br = uStarP[i].y; } }
+        float h1 = hash1(seed * 31.3 + cycle * 5.7), h2 = hash1(seed * 43.1 + cycle * 9.1);
+        float rho = sz * (0.25 + 2.6 * pow(h1, 0.7));               // denser near the core
+        float th  = h2 * 6.2831853;
+        vec3 t1 = normalize(cross(c, abs(c.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+        vec3 t2 = cross(c, t1);
+        vec3 p0 = normalize(c + (t1 * cos(th) + t2 * sin(th)) * rho);
+        float omega = 0.9 / (rho / sz + 0.35);                     // the inner ring turns faster
+        vec3 head = advect(rotAxis(p0, c, omega * age), age * 0.25);
+        vec3 tail = advect(rotAxis(p0, c, omega * max(age - 0.12, 0.0)), max(age - 0.12, 0.0) * 0.25);
+        float close = 1.0 - clamp(rho / (sz * 2.9), 0.0, 1.0);
+        col = mix(GOLD * 0.9, IVORY, close * close) * br;
+        glow = mix(0.9, 2.2, close) * br;
+        float size = uSize * (0.5 + 0.9 * hash1(seed * 4.4)) * mix(0.8, 1.4, close);
+        placeStar(uShapeA, head, tail, size, hp, tp, w, nrm, maxLen);
+        if (uBlend > 0.001) {
+          vec3 hp2, tp2, nrm2; float w2, maxLen2;
+          placeStar(uShapeB, head, tail, size, hp2, tp2, w2, nrm2, maxLen2);
+          hp = mix(hp, hp2, e); tp = mix(tp, tp2, e); w = mix(w, w2, e); nrm = normalize(mix(nrm, nrm2, e));
+          maxLen = max(maxLen, maxLen2) * 4.0;
+        }
+        hfade = smoothstep(-0.16, -0.02, head.y);
+      }
+      vColor = col;
+      vGlow = glow;
+
+      float fade = smoothstep(0.0, 0.12, f) * (1.0 - smoothstep(0.78, 1.0, f)) * hfade;
+
+      vec3 seg = hp - tp;
+      float len = length(seg);
+      vec3 flow = len > 1e-5 ? seg / len : normalize(cross(nrm, vec3(0.0, 1.0, 0.0)) + vec3(1e-4, 0.0, 0.0));
+      if (len > maxLen) fade = 0.0;
+      vec3 sideRaw = cross(nrm, flow);
+      vec3 side = length(sideRaw) > 1e-3 ? normalize(sideRaw) : normalize(cross(flow, vec3(0.0, 1.0, 0.01)));
+      vec3 out_ = cross(flow, side);
+      vec3 sc = vec3(w + len * 0.35, w, w) * fade;                 // a ball, stretched a little when it moves fast
+      mat3 basis = mat3(flow, side, out_);
+      vec3 wp = (hp + tp) * 0.5 + basis * (position * sc);
+      vNormal = normalize(basis * (normal / max(sc, vec3(1e-4))));
+      vView = -(modelViewMatrix * vec4(wp, 1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(wp, 1.0);
+    }`;
+
+  // Everything else in the scene — ground, hills, village, cypress — is a cloud of still particles.
+  const sceneVert = `
+    precision highp float;
+    attribute vec3  ipos;
+    attribute vec3  icol;
+    attribute vec2  iparam;      // x radius, y glow
+    attribute float seed;
+    uniform float uTime;
+    uniform float uLandMix;      // 0 = the land at true scale around you, 1 = a diorama inside the volume
+    uniform vec3  uVolCenter;
+    uniform float uVolR;
+    varying vec3  vColor;
+    varying vec3  vNormal;
+    varying vec3  vView;
+    varying float vGlow;
+    // Fold 300 m of landscape into the volume: distance is compressed r/(r+40), so the cypress stays
+    // near the middle, the village sits halfway out and the hills ring the rim.
+    vec3 diorama(vec3 p) {
+      float k = 40.0;
+      float rr = length(p.xz);
+      vec2 xz = p.xz / max(rr, 1e-3) * (uVolR * 0.92 * rr / (rr + k));
+      float y = uVolR * 0.9 * (max(p.y, 0.0) / (max(p.y, 0.0) + k)) - uVolR * 0.55;
+      vec3 q = vec3(xz.x, y, xz.y);
+      float a = uTime * 0.07; float c = cos(a), sn = sin(a);            // same turntable as the sky
+      q = vec3(q.x * c + q.z * sn, q.y, -q.x * sn + q.z * c);
+      return uVolCenter + q;
+    }
+    void main() {
+      // breathing: a slow wave that travels through each object, a sway that grows with height,
+      // and a little per-grain flicker on top, so trees and houses feel alive without wandering
+      float wave = sin(uTime * 0.7 + ipos.x * 0.18 + ipos.z * 0.14 + ipos.y * 0.45);
+      float sway = sin(uTime * 0.45 + ipos.x * 0.05 + ipos.z * 0.05);
+      float jit  = sin(uTime * (1.2 + seed * 1.6) + seed * 40.0);
+      float amp  = iparam.x * 1.6;
+      vec3 p = ipos
+             + vec3(sway * ipos.y * 0.025, wave * amp * 0.9 + jit * amp * 0.35, sway * ipos.y * 0.012);
+      float r = iparam.x * (0.85 + 0.2 * (0.5 + 0.5 * wave) + 0.08 * jit);
+      if (uLandMix > 0.001) {
+        float rv = (0.0011 + iparam.x * 0.0012) * (0.8 + 0.4 * seed) * uVolR * 1.6;
+        p = mix(p, diorama(p), uLandMix);
+        r = mix(r, rv, uLandMix);
+      }
+      vec3 wp = p + position * r;
+      vNormal = normal;
+      vColor = icol;
+      vGlow = iparam.y;
+      vec4 mv = modelViewMatrix * vec4(wp, 1.0);
+      vView = -mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`;
+
+  const starDirs = [
+    [ 0.18, 0.62, -0.76], [ 0.52, 0.48, -0.70], [-0.30, 0.55, -0.78], [-0.62, 0.40, -0.68],
+    [ 0.80, 0.30, -0.52], [-0.05, 0.80, -0.60], [-0.85, 0.22, -0.48], [ 0.40, 0.20, -0.89],
+    [ 0.62, 0.72,  0.31], [-0.55, 0.66,  0.51], [ 0.10, 0.45,  0.89]
+  ].map(a => new THREE.Vector3(...a).normalize());
+  const starParams = [
+    [0.075, 1.15], [0.060, 1.0], [0.055, 0.95], [0.065, 1.05],
+    [0.050, 0.9],  [0.045, 0.85], [0.052, 0.8], [0.040, 0.9],
+    [0.058, 0.9],  [0.050, 0.85], [0.044, 0.8]
+  ].map(a => new THREE.Vector2(a[0], a[1]));
+
+  const shared = {
+    uTime:   { value: 0 },
+    uVDir:   { value: Array.from({ length: MAXV }, () => new THREE.Vector3(0, 1, 0)) },
+    uVPar:   { value: Array.from({ length: MAXV }, () => new THREE.Vector4(0, 0.3, 1, 0)) },
+    uVCount: { value: 0 },
+    uStar:   { value: starDirs },
+    uStarP:  { value: starParams },
+    uMoon:   { value: new THREE.Vector3(0.82, 0.52, -0.25).normalize() }
+  };
+
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(500, 48, 32),
+    new THREE.ShaderMaterial({ uniforms: shared, vertexShader: skyVert, fragmentShader: skyFrag, side: THREE.BackSide, depthWrite: false, fog: false })
+  );
+  sky.frustumCulled = false;
+  sky.renderOrder = -2;
+  scene.add(sky);
+
+  const ballGeo = new THREE.SphereGeometry(1, 5, 3);
+  const dabGeo = new THREE.InstancedBufferGeometry().copy(ballGeo);
+  {
+    const seeds = new Float32Array(N), kinds = new Float32Array(N);
+    for (let i = 0; i < N; i++) { seeds[i] = (i + 0.5) / N; kinds[i] = i < N_SKY ? 0 : 1; }
+    dabGeo.setAttribute('seed', new THREE.InstancedBufferAttribute(seeds, 1));
+    dabGeo.setAttribute('kind', new THREE.InstancedBufferAttribute(kinds, 1));
+    dabGeo.instanceCount = N;
+  }
+  const VOL_CENTER = new THREE.Vector3(0, 1.75, -2.1);
+  const VOL_R = 0.62;
+  const dabUniforms = Object.assign({
+    uSize: { value: 1.35 },
+    uShapeA: { value: 0 }, uShapeB: { value: 0 }, uBlend: { value: 0 },
+    uVolCenter: { value: VOL_CENTER }, uVolR: { value: VOL_R }
+  }, shared);
+
+  /* ---------- shapes: dome, sphere, cube ---------- */
+  // faint frames for the volumes, so the cube's corners and the sphere's equator read through the swarm
+  const frameMat = new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0 });
+  const cubeFrame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(VOL_R * 2, VOL_R * 2, VOL_R * 2)), frameMat.clone());
+  const sphereFrame = new THREE.Group();
+  for (let k = 0; k < 3; k++) {
+    const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
+      Array.from({ length: 96 }, (_, i) => { const a = i / 96 * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * VOL_R, 0, Math.sin(a) * VOL_R); })), frameMat.clone());
+    if (k === 1) ring.rotation.x = Math.PI / 2; if (k === 2) ring.rotation.z = Math.PI / 2;
+    sphereFrame.add(ring);
+  }
+  cubeFrame.position.copy(VOL_CENTER); sphereFrame.position.copy(VOL_CENTER);
+  scene.add(cubeFrame, sphereFrame);
+  const VOL_R0 = VOL_R;
+  // Is a point inside (or just outside) the volume? Sphere by distance, cube by max-norm.
+  const _rel = new THREE.Vector3();
+  function insideVolume(p, slack) {
+    if (shape.target === 0) return false;
+    _rel.copy(p).sub(VOL_CENTER);
+    const r = dabUniforms.uVolR.value * (slack || 1.0);
+    return shape.target === 2 ? Math.max(Math.abs(_rel.x), Math.abs(_rel.y), Math.abs(_rel.z)) < r : _rel.length() < r;
+  }
+  let grabbedBy = null;                                  // which hand or controller is carrying the volume
+  const _grabTarget = new THREE.Vector3();
+  function grabVolume(who, at) {
+    who.grabOffset = new THREE.Vector3().copy(VOL_CENTER).sub(at);
+    grabbedBy = who;
+  }
+  function dragVolume(who, at) {
+    if (grabbedBy !== who) return;
+    _grabTarget.copy(at).add(who.grabOffset);
+    _grabTarget.y = Math.max(_grabTarget.y, dabUniforms.uVolR.value * 0.6);  // never sink it into the floor
+    VOL_CENTER.lerp(_grabTarget, 0.35);
+    cubeFrame.position.copy(VOL_CENTER); sphereFrame.position.copy(VOL_CENTER);
+  }
+  function releaseVolume(who) { if (grabbedBy === who) grabbedBy = null; }
+  function placeVolume(x, y, z, r) {
+    VOL_CENTER.set(x, y, z);
+    dabUniforms.uVolR.value = r;
+    cubeFrame.position.copy(VOL_CENTER); sphereFrame.position.copy(VOL_CENTER);
+    cubeFrame.scale.setScalar(r / VOL_R0); sphereFrame.scale.setScalar(r / VOL_R0);
+  }
+  let passthrough = false;        // camera feed visible right now
+  let wantSeeThrough = true;      // the menu toggle
+  let sessionMode = null;         // 'immersive-vr' | 'immersive-ar' | null
+  let switchToAR = false;
+  function applySeeThrough() {
+    passthrough = sessionMode === 'immersive-ar' && wantSeeThrough;
+    renderer.setClearColor(passthrough ? 0x000000 : 0x060d22, passthrough ? 0 : 1);
+    if (typeof refreshMenu === 'function') refreshMenu();
+  }
+  function toggleSeeThrough() {
+    if (sessionMode === 'immersive-ar') { wantSeeThrough = !wantSeeThrough; applySeeThrough(); return; }
+    if (sessionMode === 'immersive-vr' && xrSession) {
+      // a VR session has no camera feed; end it and try to come back as a see-through session
+      switchToAR = true; wantSeeThrough = true; xrSession.end();
+    }
+  }
+  function updateFrames(time) {
+    // volumetric modes pull the whole landscape into the volume; the gloom dome goes away with it
+    const volA = shape.current > 0 ? 1 : 0, volB = shape.target > 0 ? 1 : 0;
+    const eb = shape.animating ? shape.blend * shape.blend * (3 - 2 * shape.blend) : 1;
+    const landMix = shape.animating ? volA + (volB - volA) * eb : volB;
+    landUniforms.uLandMix.value = landMix;
+    sky.visible = !passthrough && landMix < 0.999;
+    sky.material.opacity = 1;
+    cubeFrame.rotation.y = sphereFrame.rotation.y = time * 0.07;
+    const e = shape.animating ? shape.blend : 1;
+    const wA = shape.animating ? 1 - e : 0, wB = e;
+    const op = (idx) => 0.28 * ((shape.current === idx ? wA : 0) + (shape.target === idx ? wB : 0));
+    const held = grabbedBy ? 2.2 : 1;
+    cubeFrame.material.opacity = op(2) * (passthrough ? 1.6 : 1) * held;
+    sphereFrame.children.forEach(r => { r.material.opacity = op(1) * 0.7 * held; });
+  }
+  const SHAPES = ['Dome', 'Sphere', 'Cube'];
+  const shape = { current: 0, target: 0, blend: 0, animating: false };
+  function setShape(idx) {
+    if (idx === shape.target) return;
+    if (idx === 0) grabbedBy = null;
+    shape.current = shape.target;                           // if mid-transition, snap to where we were heading
+    shape.target = idx; shape.blend = 0; shape.animating = true;
+    dabUniforms.uShapeA.value = shape.current;
+    dabUniforms.uShapeB.value = shape.target;
+    dabUniforms.uBlend.value = 0;
+    document.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('on', +b.dataset.shape === idx));
+    if (typeof refreshMenu === 'function') refreshMenu();
+  }
+  function updateShape(dt) {
+    if (!shape.animating) return;
+    if (shape.snap) { shape.blend = 1; shape.snap = false; }
+    shape.blend = Math.min(1, shape.blend + dt / 1.8);
+    dabUniforms.uBlend.value = shape.blend;
+    if (shape.blend >= 1) {
+      shape.animating = false; shape.current = shape.target;
+      dabUniforms.uShapeA.value = shape.current; dabUniforms.uBlend.value = 0;
+    }
+  }
+  // A pointing ray means a sky direction on the dome, but an axis through the centre of a volume.
+  const _closest = new THREE.Vector3();
+  function aimAxis(origin, dir) {
+    if (shape.target === 0) return dir.clone().normalize();
+    const t = Math.max(0, _closest.copy(VOL_CENTER).sub(origin).dot(dir));
+    _closest.copy(origin).addScaledVector(dir, t).sub(VOL_CENTER);
+    return _closest.lengthSq() < 1e-6 ? dir.clone().normalize() : _closest.clone().normalize();
+  }
+
+  const dabs = new THREE.Mesh(dabGeo, new THREE.ShaderMaterial({ uniforms: dabUniforms, vertexShader: dabVert, fragmentShader: glowFrag, fog: false }));
+  dabs.frustumCulled = false;
+  scene.add(dabs);
+
+  /* ---------- vortices ---------- */
+  const builtin = [
+    { dir: new THREE.Vector3( 0.30, 0.50, -0.81).normalize(), strength: 1.25, radius: 0.48, sign:  1, phase: 0.0 },
+    { dir: new THREE.Vector3(-0.60, 0.36, -0.72).normalize(), strength: 0.85, radius: 0.32, sign: -1, phase: 2.1 },
+    { dir: new THREE.Vector3( 0.55, 0.42,  0.72).normalize(), strength: 0.70, radius: 0.38, sign:  1, phase: 4.0 }
+  ];
+  const userVortices = [];
+
+  function beginVortex(dir, sign) {
+    const v = { dir: dir.clone().normalize(), strength: 0.05, radius: 0.26, sign: sign || 1, phase: Math.random() * 6.28, held: true };
+    userVortices.push(v);
+    while (userVortices.length > MAXV - builtin.length) userVortices.shift();
+    return v;
+  }
+  function updateVortices(dt, time) {
+    for (let i = userVortices.length - 1; i >= 0; i--) {
+      const v = userVortices[i];
+      if (v.held) {
+        v.strength = Math.min(2.4, v.strength + dt * 1.0);
+        v.radius   = Math.min(0.42, v.radius + dt * 0.05);
+        v.phase   += dt * 3.0;
+      } else {
+        v.strength *= Math.exp(-dt / 7.0);
+        v.phase   += dt * 0.6;
+        if (v.strength < 0.02) { userVortices.splice(i, 1); continue; }
+      }
+    }
+    const all = builtin.concat(userVortices);
+    shared.uVCount.value = all.length;
+    for (let i = 0; i < all.length; i++) {
+      const v = all[i];
+      shared.uVDir.value[i].copy(v.dir);
+      const ph = v.held !== undefined ? v.phase : time * 0.45 + v.phase;
+      shared.uVPar.value[i].set(v.strength, v.radius, v.sign, ph);
+    }
+  }
+
+  /* ---------- the land, as particles ---------- */
+  const cloud = { pos: [], col: [], par: [], seed: [] };
+  const C = new THREE.Color();
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function drop(x, y, z, hex, radius, glow, jitter) {
+    C.setHex(hex);
+    const j = 0.82 + Math.random() * 0.36;                 // no two grains the same value
+    cloud.pos.push(x, y, z);
+    cloud.col.push(C.r * j, C.g * j, C.b * j);
+    cloud.par.push(radius * rnd(0.7, 1.3), glow * rnd(0.8, 1.2));
+    cloud.seed.push(Math.random());
+  }
+  // ground: a dark meadow that thins with distance
+  for (let i = 0; i < 7000; i++) {
+    const r = 3 + 320 * Math.pow(Math.random(), 1.6), a = Math.random() * Math.PI * 2;
+    drop(Math.cos(a) * r, 0.05 + Math.random() * 0.25, Math.sin(a) * r, i % 7 === 0 ? 0x3a6bc4 : 0x1c3f8f, 0.07 + r * 0.009, 0.5, 0);
+  }
+  // hills: grains on the upper skin of each ellipsoid
+  [[-140, 0, -230, 190, 26, 70], [60, 0, -260, 240, 34, 90], [200, 0, -190, 150, 18, 60],
+   [-260, 0, -120, 160, 22, 60], [120, 0, 220, 220, 30, 90], [-150, 0, 260, 200, 24, 80]].forEach(h => {
+    for (let i = 0; i < 1400; i++) {
+      const a = Math.random() * Math.PI * 2, e = Math.acos(Math.random());  // upper hemisphere
+      const x = Math.cos(a) * Math.sin(e), y = Math.cos(e), z = Math.sin(a) * Math.sin(e);
+      drop(h[0] + x * h[3], y * h[4] + 0.3, h[2] + z * h[5], y > 0.85 ? 0x4a7fc8 : 0x24509e, 1.0 + h[3] * 0.004, 0.65, 0);
+    }
+  });
+  // village: walls, roofs, and lit windows
+  [[-22, -95, 4, 3.5], [-12, -100, 5, 4], [-2, -96, 4.5, 3.6], [8, -102, 6, 4.2], [18, -97, 4, 3.4], [30, -104, 5, 3.8], [-34, -104, 4.6, 3.2]].forEach(h => {
+    const [cx, cz, w, ht] = h, d = w * 0.8;
+    for (let i = 0; i < 260; i++) {
+      const face = Math.floor(Math.random() * 4);
+      const u = Math.random() - 0.5, v = Math.random();
+      const x = face < 2 ? cx + (face === 0 ? -w / 2 : w / 2) : cx + u * w;
+      const z = face < 2 ? cz + u * d : cz + (face === 2 ? -d / 2 : d / 2);
+      drop(x, v * ht, z, Math.random() < 0.2 ? 0x8a7a5a : 0x3e5aa6, 0.18, 0.9, 0);
+    }
+    for (let i = 0; i < 120; i++) {                        // roof: a squat pyramid
+      const v = Math.random(), a = Math.random() * Math.PI * 2, rr = (1 - v) * w * 0.75;
+      drop(cx + Math.cos(a) * rr, ht + v * ht * 0.6, cz + Math.sin(a) * rr, 0x6a5a8a, 0.18, 0.9, 0);
+    }
+    for (let k = 0; k < 2; k++) for (let i = 0; i < 6; i++) // windows: warm grains, brighter
+      drop(cx - w * 0.25 + k * w * 0.5 + rnd(-0.25, 0.25), ht * 0.45 + rnd(-0.3, 0.3), cz + d / 2 + 0.12, 0xf6d76b, 0.15, 3.0, 0);
+  });
+  for (let i = 0; i < 400; i++) {                          // church and spire
+    const v = Math.random(), a = Math.random() * Math.PI * 2;
+    if (i < 160) drop(3 + Math.cos(a) * 2.5, v * 7, -112 + Math.sin(a) * 2.5, 0x3e5aa6, 0.2, 0.9, 0);
+    else { const rr = (1 - v) * 2.2; drop(3 + Math.cos(a) * rr, 7 + v * 16, -112 + Math.sin(a) * rr, 0x6a5a8a, 0.2, 1.0, 0); }
+  }
+  // the cypress: a flame of dark green grains, dense at the core
+  {
+    const tiers = 13; let y = 0;
+    for (let t = 0; t < tiers; t++) {
+      const f = t / (tiers - 1);
+      const r = (1.5 * (1 - f) * (1 - f * 0.3) + 0.12) * 1.6, h = (2.0 - f * 0.5) * 1.6;
+      const ox = Math.sin(t * 1.7) * 0.19, oz = Math.cos(t * 1.3) * 0.16;
+      for (let i = 0; i < 300; i++) {
+        const v = Math.random(), a = Math.random() * Math.PI * 2, rr = (1 - v) * r * Math.sqrt(Math.random() * 0.6 + 0.4);
+        drop(-9.5 + ox + Math.cos(a) * rr, y + v * h, -17 + oz + Math.sin(a) * rr, Math.random() < 0.2 ? 0x246b42 : 0x0d3320, 0.16 + (1 - f) * 0.06, 1.0, 0);
+      }
+      y += h * 0.55;
+    }
+  }
+  const sceneGeo = new THREE.InstancedBufferGeometry().copy(ballGeo);
+  sceneGeo.setAttribute('ipos', new THREE.InstancedBufferAttribute(new Float32Array(cloud.pos), 3));
+  sceneGeo.setAttribute('icol', new THREE.InstancedBufferAttribute(new Float32Array(cloud.col), 3));
+  sceneGeo.setAttribute('iparam', new THREE.InstancedBufferAttribute(new Float32Array(cloud.par), 2));
+  sceneGeo.setAttribute('seed', new THREE.InstancedBufferAttribute(new Float32Array(cloud.seed), 1));
+  sceneGeo.instanceCount = cloud.seed.length;
+  const landUniforms = { uTime: shared.uTime, uLandMix: { value: 0 }, uVolCenter: dabUniforms.uVolCenter, uVolR: dabUniforms.uVolR };
+  const land = new THREE.Mesh(sceneGeo, new THREE.ShaderMaterial({ uniforms: landUniforms, vertexShader: sceneVert, fragmentShader: glowFrag, fog: false }));
+  land.frustumCulled = false;
+  scene.add(land);
+
+  /* ---------- controllers ---------- */
+  const rayGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+  const controllers = [];
+  const tmpV2 = new THREE.Vector3();
+  const tmpQ = new THREE.Quaternion();
+  const tmpV = new THREE.Vector3();
+  function controllerDir(ctrl) {
+    ctrl.getWorldQuaternion(tmpQ);
+    return tmpV.set(0, 0, -1).applyQuaternion(tmpQ).normalize();
+  }
+  for (let i = 0; i < 2; i++) {
+    const ctrl = renderer.xr.getController(i);
+    const line = new THREE.Line(rayGeom, new THREE.LineBasicMaterial({ color: 0xf6d76b, transparent: true, opacity: 0.55 }));
+    line.scale.z = 40;
+    ctrl.add(line);
+    const state = { ctrl, line, vortex: null, sign: 1 };
+    ctrl.addEventListener('selectstart', () => {
+      const at = ctrl.getWorldPosition(new THREE.Vector3());
+      if (insideVolume(at, 1.25)) { grabVolume(state, at); line.material.opacity = 1.0; return; }
+      state.vortex = beginVortex(aimAxis(at, controllerDir(ctrl)), state.sign); line.material.opacity = 1.0;
+    });
+    ctrl.addEventListener('selectend', () => { releaseVolume(state); if (state.vortex) state.vortex.held = false; state.vortex = null; line.material.opacity = 0.55; });
+    ctrl.addEventListener('squeezestart', () => {
+      state.sign = -state.sign;
+      if (state.vortex) state.vortex.sign = state.sign;
+      line.material.color.setHex(state.sign > 0 ? 0xf6d76b : 0x5b93d6);
+    });
+    ctrl.addEventListener('connected', e => { line.visible = !(e.data && e.data.hand); });
+    scene.add(ctrl);
+    controllers.push(state);
+  }
+
+  /* ---------- hands: joints, bones, pinch ---------- */
+  const JOINTS = ['wrist',
+    'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip',
+    'index-finger-metacarpal', 'index-finger-phalanx-proximal', 'index-finger-phalanx-intermediate', 'index-finger-phalanx-distal', 'index-finger-tip',
+    'middle-finger-metacarpal', 'middle-finger-phalanx-proximal', 'middle-finger-phalanx-intermediate', 'middle-finger-phalanx-distal', 'middle-finger-tip',
+    'ring-finger-metacarpal', 'ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal', 'ring-finger-tip',
+    'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'];
+  const TIPS = new Set(['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip']);
+  // bone chains: wrist → metacarpal → … → tip
+  const BONES = [];
+  [['thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'],
+   ['index-finger-metacarpal', 'index-finger-phalanx-proximal', 'index-finger-phalanx-intermediate', 'index-finger-phalanx-distal', 'index-finger-tip'],
+   ['middle-finger-metacarpal', 'middle-finger-phalanx-proximal', 'middle-finger-phalanx-intermediate', 'middle-finger-phalanx-distal', 'middle-finger-tip'],
+   ['ring-finger-metacarpal', 'ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal', 'ring-finger-tip'],
+   ['pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip']
+  ].forEach(chain => { let prev = 'wrist'; chain.forEach(j => { BONES.push([prev, j]); prev = j; }); });
+  // palm outline across the metacarpal knuckles
+  [['index-finger-phalanx-proximal', 'middle-finger-phalanx-proximal'], ['middle-finger-phalanx-proximal', 'ring-finger-phalanx-proximal'],
+   ['ring-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal'], ['pinky-finger-metacarpal', 'wrist']].forEach(b => BONES.push(b));
+
+  const jointGeo = new THREE.SphereGeometry(1, 10, 8);
+  const jointMat = new THREE.MeshBasicMaterial({ color: 0xf6d76b, transparent: true, depthTest: false, depthWrite: false });
+  const tipMat = new THREE.MeshBasicMaterial({ color: 0xfbf1c2, transparent: true, depthTest: false, depthWrite: false });
+  const boneMat = new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false });
+  const pinchMat = new THREE.MeshBasicMaterial({ color: 0x5b93d6, transparent: true, opacity: 0.35, depthTest: false, depthWrite: false });
+  const hands = [];
+  const tmpM = new THREE.Matrix4();
+  const tmpS = new THREE.Vector3();
+  const headPos = new THREE.Vector3();
+
+  for (let i = 0; i < 2; i++) {
+    const hand = renderer.xr.getHand(i);
+    const joints = new THREE.InstancedMesh(jointGeo, jointMat, JOINTS.length);
+    joints.frustumCulled = false;
+    const tips = new THREE.InstancedMesh(jointGeo, tipMat, 5);
+    tips.frustumCulled = false;
+    const bonePos = new Float32Array(BONES.length * 6);
+    const boneGeo = new THREE.BufferGeometry();
+    boneGeo.setAttribute('position', new THREE.BufferAttribute(bonePos, 3).setUsage(THREE.DynamicDrawUsage));
+    const bones = new THREE.LineSegments(boneGeo, boneMat);
+    bones.frustumCulled = false;
+    const pinchRing = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0025, 8, 24), pinchMat);
+    pinchRing.visible = false;
+    joints.renderOrder = 30; tips.renderOrder = 31; bones.renderOrder = 29; pinchRing.renderOrder = 32;   // hands sit above the menu
+    scene.add(joints, tips, bones, pinchRing);
+
+    const state = { hand, joints, tips, bones, bonePos, pinchRing, vortex: null, handedness: 'right', tracked: false };
+    hand.addEventListener('connected', e => { state.handedness = (e.data && e.data.handedness) || 'right'; });
+    hand.addEventListener('pinchstart', () => {
+      const at = pinchPoint(state);
+      if (at && insideVolume(at, 1.25)) { grabVolume(state, at); pinchRing.visible = true; return; }
+      const dir = pinchDirection(state);
+      if (dir) { state.vortex = beginVortex(dir, state.handedness === 'left' ? -1 : 1); pinchRing.visible = true; }
+    });
+    hand.addEventListener('pinchend', () => {
+      releaseVolume(state);
+      if (state.vortex) state.vortex.held = false;
+      state.vortex = null; pinchRing.visible = false;
+    });
+    scene.add(hand);
+    hands.push(state);
+  }
+
+  const _pinchAt = new THREE.Vector3();
+  function pinchPoint(state) {
+    const it = state.hand.joints['index-finger-tip'], tt = state.hand.joints['thumb-tip'];
+    if (!it || !tt || !it.visible) return null;
+    return _pinchAt.copy(it.position).add(tt.position).multiplyScalar(0.5);
+  }
+  // Where is this pinch pointing? A ray from the eyes through the pinch point, onto the dome.
+  function pinchDirection(state) {
+    const it = state.hand.joints['index-finger-tip'], tt = state.hand.joints['thumb-tip'];
+    if (!it || !tt || !it.visible) return null;
+    camera.getWorldPosition(headPos);
+    tmpV.copy(it.position).add(tt.position).multiplyScalar(0.5);
+    state.pinchRing.position.copy(tmpV);
+    return aimAxis(headPos, tmpV.sub(headPos).normalize());
+  }
+
+  function updateHands() {
+    let anyTracked = false;
+    for (const s of hands) {
+      const js = s.hand.joints;
+      const wrist = js && js['wrist'];
+      const tracked = !!(wrist && wrist.visible);
+      s.joints.visible = s.tips.visible = s.bones.visible = tracked;
+      s.tracked = tracked;
+      if (!tracked) { releaseVolume(s); if (s.vortex) { s.vortex.held = false; s.vortex = null; s.pinchRing.visible = false; } continue; }
+      anyTracked = true;
+      let tipIdx = 0;
+      for (let k = 0; k < JOINTS.length; k++) {
+        const j = js[JOINTS[k]];
+        if (!j || !j.visible) { tmpM.makeScale(0, 0, 0); s.joints.setMatrixAt(k, tmpM); continue; }
+        const r = (j.jointRadius || 0.008);
+        tmpM.compose(j.position, j.quaternion, tmpS.setScalar(r * 0.75));
+        s.joints.setMatrixAt(k, tmpM);
+        if (TIPS.has(JOINTS[k])) { tmpM.compose(j.position, j.quaternion, tmpS.setScalar(r * 1.05)); s.tips.setMatrixAt(tipIdx++, tmpM); }
+      }
+      s.joints.instanceMatrix.needsUpdate = true;
+      s.tips.instanceMatrix.needsUpdate = true;
+      for (let b = 0; b < BONES.length; b++) {
+        const a = js[BONES[b][0]], c = js[BONES[b][1]];
+        const o = b * 6;
+        if (a && c && a.visible && c.visible) {
+          s.bonePos[o] = a.position.x; s.bonePos[o + 1] = a.position.y; s.bonePos[o + 2] = a.position.z;
+          s.bonePos[o + 3] = c.position.x; s.bonePos[o + 4] = c.position.y; s.bonePos[o + 5] = c.position.z;
+        } else for (let k = 0; k < 6; k++) s.bonePos[o + k] = 0;
+      }
+      s.bones.geometry.attributes.position.needsUpdate = true;
+      if (grabbedBy === s) {
+        const at = pinchPoint(s);
+        if (at) { dragVolume(s, at); s.pinchRing.position.copy(at); camera.getWorldPosition(headPos); s.pinchRing.lookAt(headPos); }
+      } else if (s.vortex) {
+        const dir = pinchDirection(s);
+        if (dir) s.vortex.dir.copy(dir);
+        s.pinchRing.lookAt(headPos);
+      }
+    }
+    return anyTracked;
+  }
+
+  /* ---------- the hand menu: turn a palm toward your face, poke it with the other hand ---------- */
+  const menu = new THREE.Group();
+  menu.visible = false;
+  menu.renderOrder = 20;
+  scene.add(menu);
+  const MENU_W = 0.19, MENU_H = 0.175;
+  // Render queue: everything in the menu is transparent + depth-free so it sorts by renderOrder alone —
+  // panel (20) under frame (21) under buttons (22) — and the hands (30) always draw over it, so the poking finger stays visible.
+  const panelMat = new THREE.MeshBasicMaterial({ color: 0x0a1637, transparent: true, opacity: 0.86, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(MENU_W, MENU_H), panelMat);
+  panel.renderOrder = 20;
+  menu.add(panel);
+  const frame = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-MENU_W / 2, -MENU_H / 2, 0), new THREE.Vector3(MENU_W / 2, -MENU_H / 2, 0),
+    new THREE.Vector3(MENU_W / 2, MENU_H / 2, 0), new THREE.Vector3(-MENU_W / 2, MENU_H / 2, 0)]),
+    new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
+  frame.renderOrder = 21;
+  menu.add(frame);
+
+  function labelTexture(text, state, small, aspect) {
+    const cv = document.createElement('canvas'); cv.height = small ? 96 : 160; cv.width = Math.round(cv.height * (aspect || 1.3));
+    const g = cv.getContext('2d');
+    g.fillStyle = state === 'active' ? '#f6d76b' : state === 'hover' ? '#2a4a8f' : '#16306a';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.strokeStyle = state === 'active' ? '#fbf1c2' : 'rgba(169,200,232,0.5)'; g.lineWidth = 6;
+    g.strokeRect(3, 3, cv.width - 6, cv.height - 6);
+    g.fillStyle = state === 'active' ? '#0a1637' : '#e7e3d5';
+    g.font = (small ? '600 40px' : '600 46px') + ' Karla, "Helvetica Neue", Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, cv.width / 2, cv.height / 2 + 2);
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4;
+    return t;
+  }
+  const menuButtons = [];
+  function addButton(label, x, y, w, h, small, onPress, isActive) {
+    const tex = { idle: labelTexture(label, 'idle', small, w / h), hover: labelTexture(label, 'hover', small, w / h), active: labelTexture(label, 'active', small, w / h) };
+    const mat = new THREE.MeshBasicMaterial({ map: tex.idle, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.set(x, y, 0.002); m.renderOrder = 22;
+    menu.add(m);
+    menuButtons.push({ mesh: m, tex, x, y, w, h, onPress, isActive, wasIn: false, state: '' });
+  }
+  const bw = 0.056, bh = 0.044, gap = 0.006;
+  SHAPES.forEach((name, i) => addButton(name, -bw - gap + i * (bw + gap), 0.052, bw, bh, false, () => setShape(i), () => shape.target === i));
+  addButton('See-through', 0, 0.004, 3 * bw + 2 * gap, 0.036, true, () => toggleSeeThrough(), () => passthrough);
+  addButton('Calm the sky', 0, -0.052, 3 * bw + 2 * gap, 0.036, true, () => { userVortices.forEach(v => { v.held = false; v.strength = 0.01; }); }, () => false);
+  function refreshMenu() {
+    for (const b of menuButtons) {
+      const st = b.isActive() ? 'active' : b.state === 'hover' ? 'hover' : 'idle';
+      if (b.mesh.material.map !== b.tex[st]) { b.mesh.material.map = b.tex[st]; b.mesh.material.needsUpdate = true; }
+    }
+  }
+  refreshMenu();
+
+  const _pn = new THREE.Vector3(), _pa = new THREE.Vector3(), _pb = new THREE.Vector3(), _pc = new THREE.Vector3(), _toHead = new THREE.Vector3(), _local = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  let menuCooldown = 0, menuHost = null;
+  // palm normal from wrist → index metacarpal and wrist → pinky metacarpal; mirrored for the left hand
+  function palmNormal(s, out) {
+    const js = s.hand.joints, W = js['wrist'], I = js['index-finger-metacarpal'], P = js['pinky-finger-metacarpal'], M = js['middle-finger-phalanx-proximal'];
+    if (!(W && I && P && M && W.visible && I.visible && P.visible && M.visible)) return null;
+    _pa.copy(I.position).sub(W.position); _pb.copy(P.position).sub(W.position);
+    out.crossVectors(s.handedness === 'left' ? _pb : _pa, s.handedness === 'left' ? _pa : _pb).normalize();
+    _pc.copy(W.position).lerp(M.position, 0.6);              // palm centre
+    return out;
+  }
+  function updateMenu(dt) {
+    menuCooldown = Math.max(0, menuCooldown - dt);
+    camera.getWorldPosition(headPos);
+    let host = null;
+    for (const s of hands) {
+      if (!s.tracked) continue;
+      if (!palmNormal(s, _pn)) continue;
+      _toHead.copy(headPos).sub(_pc).normalize();
+      const facing = _pn.dot(_toHead);
+      // hysteresis: needs a clear palm-to-face to open, only a loose one to stay open
+      if (facing > (menuHost === s ? 0.35 : 0.6)) { host = s; break; }
+    }
+    if (!host) { menu.visible = false; menuHost = null; return; }
+    menuHost = host;
+    const target = _pa.copy(_pc).addScaledVector(_pn, 0.11).addScaledVector(_up, 0.02);
+    if (!menu.visible) { menu.position.copy(target); menu.visible = true; }
+    else menu.position.lerp(target, 0.3);
+    menu.lookAt(headPos);
+    menu.updateMatrixWorld(true);
+
+    const other = hands.find(h => h !== host && h.tracked);
+    let hovered = null;
+    if (other) {
+      const tip = other.hand.joints['index-finger-tip'];
+      if (tip && tip.visible) {
+        _local.copy(tip.position); menu.worldToLocal(_local);
+        for (const b of menuButtons) {
+          const inside = Math.abs(_local.x - b.x) < b.w / 2 && Math.abs(_local.y - b.y) < b.h / 2;
+          const near = inside && _local.z > -0.03 && _local.z < 0.07;
+          const pressed = inside && _local.z > -0.03 && _local.z < 0.012;
+          if (near) hovered = b;
+          if (pressed && !b.wasIn && menuCooldown === 0) { b.onPress(); menuCooldown = 0.5; }
+          b.wasIn = pressed;
+        }
+      }
+    }
+    for (const b of menuButtons) b.state = b === hovered ? 'hover' : '';
+    refreshMenu();
+  }
+
+  /* ---------- desktop / touch input ---------- */
+  const canvas = renderer.domElement;
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let yaw = 0, pitch = 0.18;
+  const pointer = { down: false, dragging: false, x0: 0, y0: 0, x: 0, y: 0, vortex: null, timer: 0 };
+  function pointerDir(x, y) {
+    ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    return raycaster.ray.direction.clone();
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (renderer.xr.isPresenting) return;
+    canvas.setPointerCapture(e.pointerId);
+    pointer.down = true; pointer.dragging = false;
+    pointer.x0 = pointer.x = e.clientX; pointer.y0 = pointer.y = e.clientY;
+    clearTimeout(pointer.timer);
+    pointer.timer = setTimeout(() => {
+      if (pointer.down && !pointer.dragging) pointer.vortex = beginVortex(aimAxis(camera.position, pointerDir(pointer.x, pointer.y)), e.button === 2 ? -1 : 1);
+    }, 140);
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!pointer.down) return;
+    const dx = e.clientX - pointer.x, dy = e.clientY - pointer.y;
+    pointer.x = e.clientX; pointer.y = e.clientY;
+    if (pointer.vortex) { pointer.vortex.dir.copy(aimAxis(camera.position, pointerDir(e.clientX, e.clientY))); return; }
+    if (!pointer.dragging && Math.hypot(e.clientX - pointer.x0, e.clientY - pointer.y0) > 6) pointer.dragging = true;
+    if (pointer.dragging) { yaw -= dx * 0.0032; pitch = Math.max(-0.6, Math.min(1.35, pitch + dy * 0.0032)); }
+  });
+  const release = () => {
+    clearTimeout(pointer.timer);
+    if (pointer.vortex) pointer.vortex.held = false;
+    pointer.vortex = null; pointer.down = false; pointer.dragging = false;
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  document.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => setShape(+b.dataset.shape)));
+  window.swirlingNight = { setShape, snap: () => { shape.snap = true; }, shape, menuDebug: () => { menu.userData.pin = true; return menu; } };   // console hooks
+  window.addEventListener('keydown', e => { if (e.key >= '1' && e.key <= '3') setShape(+e.key - 1); });
+
+  /* ---------- WebXR session ---------- */
+  const vrBtn = document.getElementById('vrBtn');
+  const openBtn = document.getElementById('openBtn');
+  const statusEl = document.getElementById('status');
+  const placard = document.getElementById('placard');
+  const hint = document.getElementById('hint');
+  const fpsEl = document.getElementById('fps');
+  let xrSession = null;
+  function setStatus(msg) { statusEl.textContent = msg || ''; }
+
+  const arBtn = document.getElementById('arBtn');
+  async function enterXR(mode) {
+    if (xrSession) { xrSession.end(); return; }
+    const btn = mode === 'immersive-ar' ? arBtn : vrBtn;
+    const idle = mode === 'immersive-ar' ? 'See-through' : 'Enter VR';
+    try {
+      btn.disabled = true; btn.textContent = 'Entering…';
+      const session = await navigator.xr.requestSession(mode, { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
+      xrSession = session;
+      sessionMode = mode;
+      session.addEventListener('end', () => {
+        xrSession = null; sessionMode = null; btn.disabled = false; btn.textContent = idle;
+        applySeeThrough();
+        placeVolume(0, 1.75, -2.1, VOL_R0);
+        dabUniforms.uSize.value = 1.35;
+        placard.classList.remove('hidden'); hint.classList.remove('hidden');
+        if (switchToAR) {
+          switchToAR = false;
+          if (!arBtn.hidden) enterXR('immersive-ar').catch(() => {});
+          setStatus('Press See-through to come back with the camera feed.');
+        }
+      });
+      await renderer.xr.setSession(session);
+      btn.disabled = false; btn.textContent = 'Exit';
+      placard.classList.add('hidden'); hint.classList.add('hidden');
+      dabUniforms.uSize.value = 1.6;                        // a wider field of view: a little more body per ball
+      placeVolume(0, 1.35, -1.3, 0.5);                       // arm's reach, a widget you can walk around
+      if (mode === 'immersive-ar') {
+        wantSeeThrough = true;
+        if (shape.target === 0) setShape(1);                 // see-through starts with the world in a sphere
+      }
+      applySeeThrough();
+    } catch (err) {
+      btn.disabled = false; btn.textContent = idle;
+      setStatus('Could not start the session: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  (async function probeXR() {
+    if (!('xr' in navigator)) {
+      vrBtn.textContent = 'VR not available';
+      setStatus('This browser has no WebXR. Open the page in a headset browser (Quest Browser, Wolvic, Pico Browser) or Chrome with a connected headset.');
+      return;
+    }
+    try {
+      const ok = await navigator.xr.isSessionSupported('immersive-vr');
+      if (ok) { vrBtn.disabled = false; vrBtn.textContent = 'Enter VR'; vrBtn.addEventListener('click', () => enterXR('immersive-vr')); }
+      else { vrBtn.textContent = 'No headset found'; setStatus('WebXR is present but no immersive-vr device is available. The desktop preview still works.'); }
+      const ar = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+      if (ar) { arBtn.hidden = false; arBtn.addEventListener('click', () => enterXR('immersive-ar')); }
+    } catch (err) {
+      vrBtn.textContent = 'VR blocked here';
+      setStatus('WebXR is blocked in this embedded view. Open the page in its own tab or on a headset.');
+      openBtn.hidden = false;
+      openBtn.addEventListener('click', () => window.open(location.href, '_blank', 'noopener'));
+    }
+  })();
+
+  /* ---------- loop ---------- */
+  const clock = new THREE.Clock();
+  let frames = 0, fpsT = 0;
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const time = clock.elapsedTime;
+    shared.uTime.value = time;
+
+    for (const s of controllers) {
+      if (grabbedBy === s) dragVolume(s, s.ctrl.getWorldPosition(tmpV2));
+      else if (s.vortex) s.vortex.dir.copy(aimAxis(s.ctrl.getWorldPosition(tmpV2), controllerDir(s.ctrl)));
+    }
+    if (renderer.xr.isPresenting) { updateHands(); updateMenu(dt); } else if (!menu.userData.pin) menu.visible = false;
+    updateShape(dt);
+    updateFrames(time);
+    updateVortices(dt, time);
+
+    if (!renderer.xr.isPresenting) {
+      camera.rotation.set(pitch, yaw, 0, 'YXZ');
+      frames++;
+      if (time - fpsT > 1) { fpsEl.textContent = frames + ' fps · ' + (N + cloud.seed.length).toLocaleString() + ' particles'; frames = 0; fpsT = time; }
+    }
+    renderer.render(scene, camera);
+  });
+})();
+</script>
+</body>
+</html>

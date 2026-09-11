@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impression, Sunrise — WebXR</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #7d90b3; overflow: hidden; font-family: 'Georgia', serif; }
+
+#panel {
+  position: fixed; top: 16px; left: 16px; z-index: 20; width: 250px;
+  padding: 14px 14px 12px; border-radius: 16px;
+  background: rgba(15,22,38,0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,241,222,0.14); color: #fff3e2;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+}
+#panel h1 { font-size: 1.05rem; font-weight: 300; letter-spacing: 4px; margin: 0 0 2px; }
+#panel .sub { font-size: 0.6rem; letter-spacing: 3px; color: rgba(255,245,230,0.55); text-transform: uppercase; margin-bottom: 12px; }
+#panel .grp { margin-bottom: 10px; }
+#panel .lbl { font-size: 0.58rem; letter-spacing: 2.5px; color: rgba(255,245,230,0.5); text-transform: uppercase; margin-bottom: 5px; }
+#panel .row { display: flex; gap: 5px; flex-wrap: wrap; }
+.pb {
+  flex: 1 1 0; min-width: 0; padding: 7px 6px; border-radius: 9px; cursor: pointer;
+  font-family: 'Georgia', serif; font-size: 0.72rem; letter-spacing: 1px; white-space: nowrap;
+  color: rgba(255,245,230,0.85); background: rgba(27,36,54,0.8); border: 1px solid rgba(255,241,222,0.28);
+  transition: all .18s;
+}
+.pb:hover { background: rgba(255,241,222,0.16); }
+.pb.on { background: rgba(255,77,28,0.9); border-color: rgba(255,220,190,0.9); color: #fff5e6; }
+.pb.wide { flex: 1 1 100%; padding: 10px; font-size: 0.8rem; letter-spacing: 2.5px; }
+.pb.xr { background: rgba(230,90,45,0.35); border-color: rgba(255,240,220,0.6); }
+.pb.xr:hover:not(:disabled) { background: rgba(230,90,45,0.65); }
+.pb:disabled { opacity: 0.4; cursor: not-allowed; }
+#panel .hint { font-size: 0.6rem; letter-spacing: 1px; color: rgba(255,245,230,0.45); line-height: 1.6; margin-top: 8px; }
+#panelToggle { position: fixed; top: 16px; left: 16px; z-index: 21; display: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-family: 'Georgia', serif; font-size: 0.7rem; letter-spacing: 2px; color: #fff3e2; background: rgba(15,22,38,0.72); border: 1px solid rgba(255,241,222,0.2); }
+#panel .close { position: absolute; top: 10px; right: 12px; background: none; border: none; color: rgba(255,245,230,0.5); cursor: pointer; font-size: 0.9rem; }
+@media (max-width: 520px) { #panel { width: calc(100vw - 32px); } }
+
+#hud {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,245,230,0.7); font-size: 0.72rem; letter-spacing: 1.5px; text-align: center;
+  pointer-events: none; z-index: 5; display: none; text-shadow: 0 1px 8px rgba(30,40,70,0.7);
+  max-width: 90vw; line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<button id="panelToggle">MENU</button>
+<div id="panel">
+  <button class="close" id="panelClose" title="hide">✕</button>
+  <h1>IMPRESSION, SUNRISE</h1>
+  <div class="sub">Le Havre · 1872 · WebXR</div>
+  <div class="grp"><div class="lbl">Scene</div><div class="row">
+    <button class="pb" data-act="mode" data-v="globe">Globe</button>
+    <button class="pb" data-act="mode" data-v="cube">Cube</button>
+    <button class="pb" data-act="mode" data-v="immersive">Immersive</button>
+  </div></div>
+  <div class="grp"><div class="lbl">Pinch effect</div><div class="row">
+    <button class="pb" data-act="pinch" data-v="whirl">Whirl</button>
+    <button class="pb" data-act="pinch" data-v="gather">Gather</button>
+    <button class="pb" data-act="pinch" data-v="scatter">Scatter</button>
+  </div></div>
+  <div class="grp"><div class="lbl">Effects</div><div class="row">
+    <button class="pb" data-act="accelerate">Speed</button>
+    <button class="pb" data-act="mist">Mist</button>
+    <button class="pb" data-act="sunUp">Sun ↑</button>
+  </div></div>
+  <div class="grp"><div class="row">
+    <button class="pb" data-act="menu">Hand menu</button>
+    <button class="pb" data-act="recentre">Recentre</button>
+  </div></div>
+  <div class="row"><button class="pb wide xr" id="xrBtn">ENTER AR / VR</button></div>
+  <div class="hint">Mouse — sweep · hold click — pinch · right-drag — orbit · Shift — lift sun<br>In XR: look at your open palm for the hand menu</div>
+</div>
+
+<div id="hud"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+'use strict';
+// ================================================================
+//  IMPRESSION, SUNRISE — WebXR brushstroke scene
+//  After Claude Monet, Le Havre, 1872 (public domain)
+//
+//  One scene graph, built in "painting units" inside a hemisphere of
+//  radius R (water disc + sky dome), shown two ways:
+//   • globe     — scaled to a ~0.8 m glass dome floating in front of
+//                 you (AR passthrough or VR). Pinch inside → stir.
+//                 Pinch the glass → move. Two hands → scale & turn.
+//   • immersive — scale 1, you stand on the quay inside the painting.
+//  A palm-up hand menu (either hand) switches modes and effects.
+// ================================================================
+
+const panel = document.getElementById('panel');
+const panelToggle = document.getElementById('panelToggle');
+const xrBtn = document.getElementById('xrBtn');
+const hud = document.getElementById('hud');
+
+let MODE = 'globe';
+let SESSION_KIND = null;   // 'ar' | 'vr' | null
+
+// Effect settings (driven by the hand menu)
+const FX = { pinch: 'whirl', accelerate: true, mist: true, sunUp: false };
+
+// ── Renderer ─────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 200);
+camera.position.set(0, 1.6, 0);
+
+const world = new THREE.Group();     // the painting; scaled down in globe mode
+scene.add(world);
+
+// ── Palette (sampled from the painting) ──────────────────────────
+const C = (h) => new THREE.Color(h);
+const PAL = {
+  hazeBlue: [C(0x7a8fb5), C(0x8fa2c4), C(0x9fb0cc), C(0x6f86ad), C(0xa9b4cf)],
+  hazeTeal: [C(0x7d9db0), C(0x8aa9b8)],
+  peach: [C(0xe9a173), C(0xf0b088), C(0xd98a5e), C(0xe8987a), C(0xf2c39c)],
+  water: [C(0x5d78a6), C(0x7590bb), C(0x94a8c6), C(0x4b6892), C(0x6a8ba2), C(0x849bc0), C(0xb6bfcf)],
+  waterCream: [C(0xd9d1c2), C(0xc9c3b8)],
+  sun: C(0xff4d1c),
+  reflect: [C(0xff6a32), C(0xf07a3a), C(0xe85a2a), C(0xff8c48), C(0xd8552c)],
+  reflectDark: [C(0x3a4f77), C(0x2f4468)],
+  ink: [C(0x1b2436), C(0x25324a), C(0x2c3b58), C(0x3a4a68)],
+  mast: [C(0x5c6f96), C(0x6a7ca2), C(0x53668e)],
+};
+const pick = (a) => a[(Math.random() * a.length) | 0];
+const jitter = (c, amt) => {
+  const o = c.clone();
+  o.r = THREE.MathUtils.clamp(o.r + (Math.random() - 0.5) * amt, 0, 1);
+  o.g = THREE.MathUtils.clamp(o.g + (Math.random() - 0.5) * amt, 0, 1);
+  o.b = THREE.MathUtils.clamp(o.b + (Math.random() - 0.5) * amt, 0, 1);
+  return o;
+};
+
+// ── Painting-unit geometry ───────────────────────────────────────
+const R = 40;             // hemisphere radius (painting units)
+const WATER_Y = -0.02;
+const SUN_AZ = 0.10;      // sun slightly right of "forward" (-z)
+let sunElev = 0.155, sunElevTarget = 0.155;
+
+const GLOBE_SCALE = 0.8 / (R * 2);   // 0.8 m diameter
+const globePose = { pos: new THREE.Vector3(0, 1.05, -0.55), yaw: 0, scale: 1 };
+// Cube option: a diorama box around the same scene. x ±BOX_HW, y 0..BOX_H, z BOX_ZF (front) .. BOX_ZB (back)
+const BOX_HW = 30, BOX_H = 30, BOX_ZF = 6, BOX_ZB = -42;
+const isWidget = () => MODE === 'globe' || MODE === 'cube';
+const inBox = (x, y, z) => Math.abs(x) < BOX_HW && y > -1 && y < BOX_H && z < BOX_ZF && z > BOX_ZB;
+const inDisc = (x, z) => x * x + z * z < (R - 0.8) * (R - 0.8);
+
+function applyMode() {
+  if (isWidget()) {
+    world.scale.setScalar(GLOBE_SCALE * globePose.scale);
+    world.position.copy(globePose.pos);
+    world.rotation.set(0, globePose.yaw, 0);
+  } else {
+    world.scale.setScalar(1); world.position.set(0, 0, 0); world.rotation.set(0, 0, 0);
+  }
+  world.updateMatrixWorld(true);
+  skyDome.visible = MODE === 'immersive';
+  bigWater.visible = MODE === 'immersive';
+  globeSky.visible = MODE === 'globe';
+  waterDisc.visible = MODE === 'globe';
+  glass.visible = MODE === 'globe';
+  base.visible = MODE === 'globe';
+  backWall.visible = MODE === 'cube';
+  boxFloor.visible = MODE === 'cube';
+  frame.visible = MODE === 'cube';
+  sky.mesh.material.uniforms.uHemiFade.value = MODE === 'globe' ? 1 : 0;
+  placeSun();
+  buildSky();
+  buildSil();
+  applyRegion();
+  syncMenu();
+}
+// show only the strokes that fall inside the active volume (disc for globe/immersive, box for cube)
+function applyRegion() {
+  const test = MODE === 'cube' ? (x, y, z) => inBox(x, y, z) : (x, y, z) => inDisc(x, z);
+  for (const L of [water, refl, mist]) {
+    for (let i = 0; i < L.n; i++) { const i3 = i * 3; L.alpha[i] = test(L.home[i3], L.home[i3 + 1], L.home[i3 + 2]) ? L.baseAlpha[i] : 0; L.regionMask[i] = L.alpha[i] > 0 ? 1 : 0; }
+    L.flush();
+  }
+}
+const U = () => 1 / world.scale.x;   // painting units per metre
+
+const sunPos = new THREE.Vector3();
+function placeSun() {
+  if (MODE === 'cube') {
+    const y = THREE.MathUtils.clamp(2.5 + Math.sin(sunElev) * 60, 4, BOX_H - 3);
+    sunPos.set(Math.tan(SUN_AZ) * -BOX_ZB, y, BOX_ZB + 1.2);
+    sun.position.copy(sunPos); sunHalo.position.copy(sunPos);
+    sun.rotation.set(0, 0, 0); sunHalo.rotation.set(0, 0, 0);
+    backWall.material.uniforms.uSun.value.set(sunPos.x, sunPos.y);
+    return;
+  }
+  const r = R - 0.6;
+  sunPos.set(Math.sin(SUN_AZ) * Math.cos(sunElev) * r, Math.sin(sunElev) * r, -Math.cos(SUN_AZ) * Math.cos(sunElev) * r);
+  sun.position.copy(sunPos); sunHalo.position.copy(sunPos);
+  sun.lookAt(0, 0, 0); sunHalo.lookAt(0, 0, 0);
+}
+
+// ── Brushstroke shader ───────────────────────────────────────────
+const vsStroke = `
+  attribute vec3 iPos; attribute vec3 iCol; attribute vec2 iSize;
+  attribute float iRot; attribute float iAlpha; attribute float iSeed;
+  uniform float uHemiFade;
+  varying vec2 vUv; varying vec3 vCol; varying float vAlpha; varying float vSeed;
+  void main() {
+    vUv = position.xy; vCol = iCol; vSeed = iSeed;
+    vec4 c = modelViewMatrix * vec4(iPos, 1.0);
+    float cs = cos(iRot), sn = sin(iRot);
+    float s = length(modelMatrix[0].xyz);
+    vec2 off = vec2(position.x * iSize.x, position.y * iSize.y) * s;
+    off = vec2(off.x * cs - off.y * sn, off.x * sn + off.y * cs);
+    c.xy += off;
+    gl_Position = projectionMatrix * c;
+    // globe mode: strokes on the near side of the dome fade so you can see in
+    vec3 wp = (modelMatrix * vec4(iPos, 1.0)).xyz;
+    vec3 ctr = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float facing = dot(normalize(wp - ctr), normalize(cameraPosition - ctr));
+    float fade = 1.0 - smoothstep(-0.15, 0.45, facing);
+    vAlpha = iAlpha * mix(1.0, fade, uHemiFade);
+  }`;
+const fsStroke = `
+  varying vec2 vUv; varying vec3 vCol; varying float vAlpha; varying float vSeed;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + vSeed) * 43758.5453); }
+  void main() {
+    vec2 q = vUv * 2.0;
+    float d = q.x * q.x + q.y * q.y;
+    float n = hash(floor(vUv * vec2(14.0, 5.0)));
+    float edge = 1.0 - 0.28 * n;
+    float a = 1.0 - smoothstep(edge * 0.30, edge, d);
+    if (a * vAlpha < 0.01) discard;
+    float streak = 0.97 + 0.03 * sin((vUv.x * 9.0 + vSeed) * 3.14159);
+    float ends = 1.0 - 0.12 * smoothstep(0.55, 1.0, abs(q.x));
+    gl_FragColor = vec4(vCol * streak * ends, a * vAlpha);
+  }`;
+
+class StrokeLayer {
+  constructor(count, { blending = THREE.NormalBlending, renderOrder = 0, depthTest = true, parent = world } = {}) {
+    this.n = count;
+    this.home = new Float32Array(count * 3); this.pos = new Float32Array(count * 3);
+    this.vel = new Float32Array(count * 3); this.col = new Float32Array(count * 3);
+    this.base = new Float32Array(count * 3); this.size = new Float32Array(count * 2);
+    this.rot = new Float32Array(count); this.rotHome = new Float32Array(count);
+    this.alpha = new Float32Array(count); this.baseAlpha = new Float32Array(count);
+    this.seed = new Float32Array(count); this.phase = new Float32Array(count); this.regionMask = new Float32Array(count).fill(1);
+    const g = new THREE.InstancedBufferGeometry();
+    const quad = new THREE.PlaneBufferGeometry(1, 1);
+    g.index = quad.index; g.setAttribute('position', quad.getAttribute('position'));
+    this.aPos = new THREE.InstancedBufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage);
+    this.aCol = new THREE.InstancedBufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage);
+    this.aSize = new THREE.InstancedBufferAttribute(this.size, 2).setUsage(THREE.DynamicDrawUsage);
+    this.aRot = new THREE.InstancedBufferAttribute(this.rot, 1).setUsage(THREE.DynamicDrawUsage);
+    this.aAlp = new THREE.InstancedBufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage);
+    this.aSeed = new THREE.InstancedBufferAttribute(this.seed, 1).setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('iPos', this.aPos); g.setAttribute('iCol', this.aCol); g.setAttribute('iSize', this.aSize);
+    g.setAttribute('iRot', this.aRot); g.setAttribute('iAlpha', this.aAlp); g.setAttribute('iSeed', this.aSeed);
+    g.instanceCount = count;
+    const m = new THREE.ShaderMaterial({
+      vertexShader: vsStroke, fragmentShader: fsStroke, uniforms: { uHemiFade: { value: 0 } },
+      transparent: true, depthWrite: false, depthTest, blending, side: THREE.DoubleSide,
+    });
+    this.mesh = new THREE.Mesh(g, m);
+    this.mesh.frustumCulled = false; this.mesh.renderOrder = renderOrder;
+    parent.add(this.mesh);
+  }
+  set(i, x, y, z, color, w, h, rot, alpha) {
+    const i3 = i * 3;
+    this.home[i3] = this.pos[i3] = x; this.home[i3 + 1] = this.pos[i3 + 1] = y; this.home[i3 + 2] = this.pos[i3 + 2] = z;
+    this.vel[i3] = this.vel[i3 + 1] = this.vel[i3 + 2] = 0;
+    this.base[i3] = this.col[i3] = color.r; this.base[i3 + 1] = this.col[i3 + 1] = color.g; this.base[i3 + 2] = this.col[i3 + 2] = color.b;
+    this.size[i * 2] = w; this.size[i * 2 + 1] = h;
+    this.rotHome[i] = this.rot[i] = rot; this.alpha[i] = this.baseAlpha[i] = alpha;
+    this.seed[i] = Math.random() * 100; this.phase[i] = Math.random() * Math.PI * 2;
+  }
+  flush(all = false) {
+    this.aPos.needsUpdate = this.aCol.needsUpdate = this.aRot.needsUpdate = this.aAlp.needsUpdate = true;
+    if (all) this.aSize.needsUpdate = this.aSeed.needsUpdate = true;
+  }
+}
+
+// ── Backdrops ────────────────────────────────────────────────────
+const skyFS = `
+  varying vec3 vP; uniform vec3 uSun; uniform float uWarm;
+  void main(){
+    vec3 d = normalize(vP); float el = d.y;
+    vec3 low = vec3(0.663,0.714,0.812), mid = vec3(0.541,0.612,0.741), high = vec3(0.478,0.549,0.714);
+    vec3 sky = mix(low, mid, smoothstep(-0.05, 0.18, el)); sky = mix(sky, high, smoothstep(0.18, 0.7, el));
+    vec3 sd = normalize(uSun);
+    float az = max(0.0, dot(normalize(vec3(d.x,0.0,d.z)), normalize(vec3(sd.x,0.0,sd.z))));
+    float warm = smoothstep(0.05, 0.45, el) * (0.35 + 0.65 * pow(az, 1.5)) * uWarm;
+    sky = mix(sky, vec3(0.905,0.612,0.435), warm * 0.42);
+    float g = pow(max(0.0, dot(d, sd)), 140.0);
+    sky = mix(sky, vec3(0.95,0.60,0.42), g * 0.5);
+    gl_FragColor = vec4(sky, 1.0);
+  }`;
+const skyVS = `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const mkSky = (radius) => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.52),
+    new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: { uSun: { value: sunPos }, uWarm: { value: 1.0 } }, vertexShader: skyVS, fragmentShader: skyFS }));
+  m.renderOrder = -10; world.add(m); return m;
+};
+const skyDome = mkSky(150);     // immersive
+const globeSky = mkSky(R);      // globe
+
+const waterVS = `varying vec2 vL; void main(){ vL = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const waterFS = `
+  varying vec2 vL; uniform float uR;
+  void main(){
+    float far = clamp(vL.y / uR, 0.0, 1.0), back = clamp(-vL.y / uR, 0.0, 1.0);
+    vec3 near = vec3(0.400,0.510,0.660), farc = vec3(0.620,0.690,0.800);
+    vec3 c = mix(near, farc, pow(max(far, back * 0.7), 0.7));
+    float col = exp(-abs(vL.x - 0.1 * vL.y) * 1.2) * far;
+    c = mix(c, vec3(0.72,0.55,0.45), col * 0.18);
+    gl_FragColor = vec4(c, 1.0);
+  }`;
+const mkWater = (geo, r) => {
+  const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ depthWrite: false, uniforms: { uR: { value: r } }, vertexShader: waterVS, fragmentShader: waterFS }));
+  m.rotation.x = -Math.PI / 2; m.position.y = WATER_Y - 0.01; m.renderOrder = -9; world.add(m); return m;
+};
+const bigWater = mkWater(new THREE.PlaneGeometry(400, 400), 60);
+const waterDisc = mkWater(new THREE.CircleGeometry(R, 64), R);
+
+// Glass dome + base (globe mode)
+const glass = new THREE.Mesh(new THREE.SphereGeometry(R + 0.6, 64, 32, 0, Math.PI * 2, 0, Math.PI * 0.5), new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.FrontSide,
+  uniforms: { uGlow: { value: 0.0 } },
+  vertexShader: `varying vec3 vN; varying vec3 vW; void main(){ vN = normalize(mat3(modelMatrix) * normal); vW = (modelMatrix*vec4(position,1.0)).xyz; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    varying vec3 vN; varying vec3 vW; uniform float uGlow;
+    void main(){
+      vec3 v = normalize(cameraPosition - vW);
+      float fr = pow(1.0 - max(0.0, dot(normalize(vN), v)), 3.0);
+      vec3 col = mix(vec3(0.85, 0.9, 1.0), vec3(1.0, 0.72, 0.5), uGlow);
+      gl_FragColor = vec4(col, 0.05 + fr * (0.45 + uGlow * 0.4));
+    }`
+}));
+glass.renderOrder = 12; world.add(glass);
+const base = new THREE.Group(); world.add(base);
+{
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.8, R + 2.6, 1.6, 64), new THREE.MeshBasicMaterial({ color: 0x1b2436 }));
+  ring.position.y = -0.8 - 0.01; base.add(ring);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(R + 1.2, 0.35, 8, 64), new THREE.MeshBasicMaterial({ color: 0xc9b58a }));
+  lip.rotation.x = Math.PI / 2; lip.position.y = 0.05; base.add(lip);
+}
+
+// Cube backdrops: back wall gradient, box floor, frame edges
+const backWall = new THREE.Mesh(new THREE.PlaneGeometry(BOX_HW * 2, BOX_H), new THREE.ShaderMaterial({
+  depthWrite: false,
+  uniforms: { uSun: { value: new THREE.Vector2(0, 10) }, uH: { value: BOX_H }, uWarm: { value: 1.0 } },
+  vertexShader: `varying vec2 vL; void main(){ vL = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    varying vec2 vL; uniform vec2 uSun; uniform float uH; uniform float uWarm;
+    void main(){
+      float y = (vL.y + uH * 0.5) / uH;
+      vec3 low = vec3(0.663,0.714,0.812), mid = vec3(0.541,0.612,0.741), high = vec3(0.478,0.549,0.714);
+      vec3 sky = mix(low, mid, smoothstep(0.0, 0.35, y)); sky = mix(sky, high, smoothstep(0.35, 1.0, y));
+      float dx = (vL.x - uSun.x) / 40.0;
+      float warm = smoothstep(0.25, 0.9, y) * (0.35 + 0.65 * exp(-dx * dx * 2.0)) * uWarm;
+      sky = mix(sky, vec3(0.905,0.612,0.435), warm * 0.42);
+      float g = exp(-length(vec2(vL.x - uSun.x, vL.y + uH * 0.5 - uSun.y)) * 0.12);
+      sky = mix(sky, vec3(0.95,0.60,0.42), g * 0.5);
+      gl_FragColor = vec4(sky, 1.0);
+    }`
+}));
+backWall.position.set(0, BOX_H / 2, BOX_ZB); backWall.renderOrder = -10; world.add(backWall);
+const boxFloor = mkWater(new THREE.PlaneGeometry(BOX_HW * 2, BOX_ZF - BOX_ZB), 30);
+boxFloor.position.z = (BOX_ZF + BOX_ZB) / 2;
+const frameMat = new THREE.LineBasicMaterial({ color: 0xfff1de, transparent: true, opacity: 0.35 });
+const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(BOX_HW * 2, BOX_H, BOX_ZF - BOX_ZB)), frameMat);
+frame.position.set(0, BOX_H / 2, (BOX_ZF + BOX_ZB) / 2); world.add(frame);
+
+// ── Sun ──────────────────────────────────────────────────────────
+const sun = new THREE.Mesh(new THREE.CircleGeometry(1.3, 48), new THREE.MeshBasicMaterial({ color: PAL.sun, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+sun.renderOrder = 1.5; world.add(sun);
+const sunHalo = new THREE.Mesh(new THREE.CircleGeometry(1.8, 48), new THREE.MeshBasicMaterial({ color: 0xff7a48, transparent: true, opacity: 0.16, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+sunHalo.renderOrder = 1.4; world.add(sunHalo);
+
+// ── Layers ───────────────────────────────────────────────────────
+const SKY_N = 4200;
+const sky = new StrokeLayer(SKY_N, { renderOrder: 1, depthTest: false });
+const SKY_CUBE_N = 2600;
+function buildSky() {
+  const Rs = R - 3.6;   // inset so the widest dabs stay inside the glass
+  for (let i = 0; i < SKY_N; i++) {
+    let x, y, z, el, az;
+    if (MODE === 'cube') {
+      // a slab of haze hugging the back wall, thinning toward the viewer
+      if (i >= SKY_CUBE_N) { sky.set(i, 0, -50, 0, PAL.hazeBlue[0], 0.01, 0.01, 0, 0); continue; }
+      x = (Math.random() - 0.5) * 2 * (BOX_HW - 1.5);
+      y = 1.0 + Math.pow(Math.random(), 0.8) * (BOX_H - 1.5);
+      z = BOX_ZB + 0.8 + Math.pow(Math.random(), 3.0) * 16;
+      el = (y / BOX_H) * 1.2; az = x / BOX_HW * 0.9;
+    } else {
+      el = Math.pow(Math.random(), 0.8) * 1.3 + 0.02;
+      az = Math.random() * Math.PI * 2 - Math.PI;
+      x = Math.sin(az) * Math.cos(el) * Rs; y = Math.sin(el) * Rs; z = -Math.cos(az) * Math.cos(el) * Rs;
+    }
+    const azWarm = Math.max(0, Math.cos(az - SUN_AZ - 0.35));
+    const warm = Math.min(1, Math.pow(el / 1.1, 1.5) * (0.25 + 0.75 * azWarm) * 1.05);
+    let col; const r = Math.random();
+    if (r < warm) col = pick(PAL.peach); else if (r < warm + 0.1) col = pick(PAL.hazeTeal); else col = pick(PAL.hazeBlue);
+    col = jitter(col, 0.04);
+    const w = Math.min(7.0, 3.0 + Math.random() * 5.0 + el * 1.5), h = 0.7 + Math.random() * 1.1;
+    const rot = (Math.random() - 0.5) * 0.7 + (az > 0 ? -0.2 : 0.2);
+    let clear;
+    if (MODE === 'cube') clear = THREE.MathUtils.smoothstep(Math.hypot(x - sunPos.x, y - sunPos.y), 3.5, 8.0);
+    else clear = THREE.MathUtils.smoothstep(Math.acos(THREE.MathUtils.clamp((x * sunPos.x + y * sunPos.y + z * sunPos.z) / (Rs * sunPos.length()), -1, 1)), 0.04, 0.11);
+    const ws = MODE === 'cube' ? 0.55 : 1;
+    const baseA = MODE === 'immersive' ? 0.30 + Math.random() * 0.25 : 0.24 + Math.random() * 0.2;
+    sky.set(i, x, y, z, col, w * ws, h * ws, rot, baseA * (0.1 + 0.9 * clear));
+  }
+  sky.flush(true);
+}
+
+const WATER_N = 8200;
+const water = new StrokeLayer(WATER_N, { renderOrder: 2 });
+for (let i = 0; i < WATER_N; i++) {
+  // sample the union of the disc and the cube's floor so either volume is fully painted
+  let x, z, rr;
+  do { x = (Math.random() - 0.5) * 2 * R; z = (Math.random() - 0.5) * 2 * R; rr = Math.hypot(x, z); }
+  while (!(inDisc(x, z) || inBox(x, 1, z)) || rr < 0.6);
+  const t = Math.min(1, rr / R);
+  let col = pick(PAL.water);
+  if (Math.random() < 0.08) col = pick(PAL.waterCream);
+  const underSun = Math.exp(-Math.abs(x - (-z) * Math.tan(SUN_AZ)) * 0.25) * Math.max(0, -z / R);
+  if (Math.random() < underSun * 0.35) col = col.clone().lerp(C(0xb08a78), 0.45);
+  col = jitter(col, 0.05);
+  const w = (0.35 + Math.random() * 0.9) * (1 + t * 3.0), h = (0.05 + Math.random() * 0.07) * (1 + t * 2.0);
+  water.set(i, x, WATER_Y + 0.01 + Math.random() * 0.03, z, col, w, h, (Math.random() - 0.5) * 0.08, 0.75 + Math.random() * 0.25);
+}
+water.flush(true);
+
+const REF_N = 520;
+const refl = new StrokeLayer(REF_N, { renderOrder: 3 });
+for (let i = 0; i < REF_N; i++) {
+  const t = Math.pow(Math.random(), 0.9);
+  const z = -1.2 - t * (R - 2.6);
+  const spread = 0.35 + (1 - t) * 1.4;
+  const x = (-z) * Math.tan(SUN_AZ) + (Math.random() - 0.5) * 2 * spread * (0.6 + 0.4 * Math.random());
+  const dark = Math.random() < 0.42;
+  const col = jitter(dark ? pick(PAL.reflectDark) : pick(PAL.reflect), 0.08);
+  const w = (0.22 + Math.random() * 0.5) * (1 + t * 3.2), h = (0.035 + Math.random() * 0.05) * (1 + t * 2.2);
+  refl.set(i, x, WATER_Y + 0.03 + Math.random() * 0.03, z, col, w, h, (Math.random() - 0.5) * 0.06, dark ? 0.85 : 0.95);
+}
+refl.flush(true);
+
+const SIL_N = 700;
+const sil = new StrokeLayer(SIL_N, { renderOrder: 4 });
+function buildSil() {
+  let i = 0;
+  const dab = (x, y, z, w, h, rot, a = 0.95, col = pick(PAL.ink)) => { if (i < SIL_N) sil.set(i++, x, y, z, jitter(col, 0.04), w, h, rot, a); };
+  const boat = (bx, bz, s, figure) => {
+    for (let k = 0; k < 9; k++) dab(bx + (k - 4) * 0.09 * s, WATER_Y + 0.12 * s, bz, 0.34 * s, 0.16 * s, 0, 0.98);
+    dab(bx - 0.42 * s, WATER_Y + 0.22 * s, bz, 0.18 * s, 0.2 * s, 0.5, 0.95);
+    dab(bx + 0.42 * s, WATER_Y + 0.25 * s, bz, 0.2 * s, 0.22 * s, -0.5, 0.95);
+    if (figure) {
+      dab(bx + 0.05 * s, WATER_Y + 0.55 * s, bz, 0.13 * s, 0.55 * s, 0, 0.98);
+      dab(bx + 0.05 * s, WATER_Y + 0.86 * s, bz, 0.12 * s, 0.12 * s, 0, 0.98);
+      dab(bx + 0.28 * s, WATER_Y + 0.35 * s, bz + 0.02, 0.5 * s, 0.03 * s, -0.55, 0.9);
+    }
+    for (let k = 0; k < 7; k++) dab(bx + (Math.random() - 0.5) * 0.7 * s, WATER_Y + 0.02, bz + 0.2 + k * 0.28 * s, 0.32 * s, 0.05, 0, 0.55, pick(PAL.reflectDark));
+  };
+  boat(-0.9, -6.5, 1.0, true); boat(-3.6, -14, 0.9, true); boat(-6.0, -22, 0.8, false);
+  // masts & hulls along the far rim: a big cluster to the left, a smaller one to the right
+  // globe/immersive: along the far rim of the disc. cube: along the back wall.
+  const ringDab = MODE === 'cube'
+    ? (az, rr, y, w, h, rot, a, col) => dab(THREE.MathUtils.clamp(Math.sin(az) * rr * 0.9, -BOX_HW + 1, BOX_HW - 1), y, BOX_ZB + 2 + (R - rr), w, h, rot, a, col)
+    : (az, rr, y, w, h, rot, a, col) => dab(Math.sin(az) * rr, y, -Math.cos(az) * rr, w, h, rot, a, col);
+  for (let k = 0; k < 26; k++) {
+    const az = Math.random() < 0.7 ? -1.35 + Math.random() * 0.75 : 0.45 + Math.random() * 0.5;
+    const rr = R - 3 - Math.random() * 5, hgt = 2.5 + Math.random() * 6, col = pick(PAL.mast);
+    ringDab(az, rr, hgt * 0.5, 0.12 + Math.random() * 0.12, hgt, (Math.random() - 0.5) * 0.05, 0.42, col);
+    if (Math.random() < 0.45) ringDab(az, rr, hgt * (0.55 + Math.random() * 0.3), 1.0 + Math.random() * 2.0, 0.10, (Math.random() - 0.5) * 0.1, 0.38, col);
+    ringDab(az + (Math.random() - 0.5) * 0.05, rr, 0.6, 3 + Math.random() * 4, 1.0 + Math.random() * 0.6, 0, 0.30, col);
+  }
+  for (let k = 0; k < 6; k++) {
+    const az = 0.5 + Math.random() * 0.4, rr = R - 3 - Math.random() * 4, col = pick(PAL.mast);
+    ringDab(az, rr, 2.8, 0.16, 5.5, 0, 0.40, col); ringDab(az + 0.03, rr, 4.6, 3.2, 0.12, 0.55, 0.36, col);
+  }
+  for (let k = 0; k < 60; k++) ringDab(-1.15 + Math.random() * 0.4, R - 5, 5 + Math.random() * 10, 1.5 + Math.random() * 2.5, 0.6 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6, 0.35, pick([C(0x8d9bb8), C(0x9daac4), C(0xb2b4c4)]));
+  for (; i < SIL_N; i++) sil.set(i, 0, -50, 0, PAL.ink[0], 0.01, 0.01, 0, 0);
+  sil.flush(true);
+}
+buildSil();
+
+const MIST_N = 420;
+const mist = new StrokeLayer(MIST_N, { renderOrder: 5, blending: THREE.AdditiveBlending, depthTest: false });
+for (let i = 0; i < MIST_N; i++) {
+  const rr = Math.sqrt(Math.random()) * 14, a = Math.random() * Math.PI * 2;
+  const x = Math.sin(a) * rr, z = -Math.cos(a) * rr, y = 0.2 + Math.random() * 3.2;
+  const col = Math.random() < 0.25 ? C(0x5a3a2a) : C(0x2a3550);
+  const s = 0.05 + Math.random() * 0.12;
+  mist.set(i, x, y, z, col, s * (1.5 + Math.random()), s, Math.random() * 3.14, 0.10 + Math.random() * 0.08);
+}
+mist.flush(true);
+
+// ── Hands ────────────────────────────────────────────────────────
+const JOINT_NAMES = [
+  'wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip',
+  'index-finger-metacarpal', 'index-finger-phalanx-proximal', 'index-finger-phalanx-intermediate', 'index-finger-phalanx-distal', 'index-finger-tip',
+  'middle-finger-metacarpal', 'middle-finger-phalanx-proximal', 'middle-finger-phalanx-intermediate', 'middle-finger-phalanx-distal', 'middle-finger-tip',
+  'ring-finger-metacarpal', 'ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal', 'ring-finger-tip',
+  'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip',
+];
+const mkHand = (side) => ({
+  side,
+  pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
+  pinchPt: new THREE.Vector3(), indexTip: new THREE.Vector3(),
+  wrist: new THREE.Vector3(), indexMeta: new THREE.Vector3(), pinkyMeta: new THREE.Vector3(), palmN: new THREE.Vector3(),
+  local: new THREE.Vector3(), localVel: new THREE.Vector3(), localPinch: new THREE.Vector3(),
+  pinch: 0, prevPinch: 0, active: false, wasActive: false,
+  grabbing: false, nearGlass: false, inside: false, palmUp: false,
+  grabOffset: new THREE.Vector3(),
+});
+const hands = { left: mkHand('left'), right: mkHand('right') };
+
+// Hand visualization — ALWAYS on, in AR and VR alike: an ink-dab joint at every
+// tracked joint plus a bone stroke between connected joints. Warms toward vermilion
+// as the hand pinches; turns cream when the hand is hosting the menu.
+const BONES = [];
+[[0,1,2,3,4],[0,5,6,7,8,9],[0,10,11,12,13,14],[0,15,16,17,18,19],[0,20,21,22,23,24]].forEach(ch => { for (let k = 0; k < ch.length - 1; k++) BONES.push([ch[k], ch[k + 1]]); });
+[[1,5],[5,10],[10,15],[15,20]].forEach(b => BONES.push(b));   // palm web across the metacarpals
+const NJ = JOINT_NAMES.length, NB = BONES.length;
+const HAND_N = (NJ + NB) * 2;
+const handLayer = new StrokeLayer(HAND_N, { renderOrder: 6, depthTest: false, parent: scene });
+for (let i = 0; i < HAND_N; i++) handLayer.set(i, 0, -50, 0, C(0x2a3550), 0.02, 0.014, 0, 0);
+handLayer.flush(true);
+const JOINT_SIZE = JOINT_NAMES.map(n => n === 'wrist' ? 0.016 : n.endsWith('tip') ? 0.011 : 0.008);
+const _hv = new THREE.Vector3(), _hv2 = new THREE.Vector3();
+// write one hand's joints + bones into the layer; jointPos: array of 25 Vector3 (or null)
+function drawHand(side, jointPos, color) {
+  const base = side === 'left' ? 0 : NJ + NB;
+  for (let j = 0; j < NJ; j++) {
+    const k = base + j, k3 = k * 3, p = jointPos[j];
+    if (!p) { handLayer.alpha[k] = 0; continue; }
+    handLayer.pos[k3] = p.x; handLayer.pos[k3 + 1] = p.y; handLayer.pos[k3 + 2] = p.z;
+    handLayer.col[k3] = color.r; handLayer.col[k3 + 1] = color.g; handLayer.col[k3 + 2] = color.b;
+    handLayer.size[k * 2] = JOINT_SIZE[j]; handLayer.size[k * 2 + 1] = JOINT_SIZE[j] * 0.8;
+    handLayer.rot[k] = 0; handLayer.alpha[k] = 0.9;
+  }
+  for (let b = 0; b < NB; b++) {
+    const k = base + NJ + b, k3 = k * 3, a = jointPos[BONES[b][0]], c = jointPos[BONES[b][1]];
+    if (!a || !c) { handLayer.alpha[k] = 0; continue; }
+    handLayer.pos[k3] = (a.x + c.x) * 0.5; handLayer.pos[k3 + 1] = (a.y + c.y) * 0.5; handLayer.pos[k3 + 2] = (a.z + c.z) * 0.5;
+    // the stroke shader rotates in view space, so measure the bone's angle in view space
+    _hv.copy(a).applyMatrix4(camera.matrixWorldInverse); _hv2.copy(c).applyMatrix4(camera.matrixWorldInverse);
+    handLayer.rot[k] = Math.atan2(_hv2.y - _hv.y, _hv2.x - _hv.x);
+    handLayer.size[k * 2] = a.distanceTo(c) * 1.05; handLayer.size[k * 2 + 1] = 0.0055;
+    handLayer.col[k3] = color.r * 0.85; handLayer.col[k3 + 1] = color.g * 0.85; handLayer.col[k3 + 2] = color.b * 0.85;
+    handLayer.alpha[k] = 0.7;
+  }
+}
+const handJointScratch = { left: JOINT_NAMES.map(() => new THREE.Vector3()), right: JOINT_NAMES.map(() => new THREE.Vector3()) };
+
+const pinchDots = {};
+for (const s of ['left', 'right']) {
+  const d = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff4d1c, transparent: true, opacity: 0.9, depthTest: false }));
+  d.renderOrder = 20; d.visible = false; scene.add(d); pinchDots[s] = d;
+}
+
+// ── Hand menu ────────────────────────────────────────────────────
+// A small panel that floats above an upturned palm. The other hand's
+// index finger pokes the buttons. On desktop press M and click.
+const menu = new THREE.Group(); menu.visible = false; scene.add(menu);
+const menuState = { open: false, hand: null, scale: 0, lastPoke: 0, pointer: new THREE.Vector3() };
+const BTN_W = 0.036, BTN_H = 0.015, GAP = 0.004;
+
+function makeLabelTexture(text, active, hover, small) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 108;
+  const g = cv.getContext('2d');
+  g.fillStyle = active ? 'rgba(255,77,28,0.92)' : hover ? 'rgba(255,241,222,0.32)' : 'rgba(27,36,54,0.80)';
+  const rr = 22; g.beginPath(); g.moveTo(rr, 0); g.lineTo(256 - rr, 0); g.quadraticCurveTo(256, 0, 256, rr); g.lineTo(256, 108 - rr); g.quadraticCurveTo(256, 108, 256 - rr, 108); g.lineTo(rr, 108); g.quadraticCurveTo(0, 108, 0, 108 - rr); g.lineTo(0, rr); g.quadraticCurveTo(0, 0, rr, 0); g.fill();
+  g.strokeStyle = active ? 'rgba(255,220,190,0.9)' : 'rgba(255,241,222,0.35)'; g.lineWidth = 3; g.stroke();
+  g.fillStyle = active ? '#fff5e6' : 'rgba(255,241,222,0.92)';
+  g.font = `${small ? 34 : 40}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 56);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.minFilter = THREE.LinearFilter; return tex;
+}
+function makeHeader(text) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64;
+  const g = cv.getContext('2d'); g.fillStyle = 'rgba(255,241,222,0.55)'; g.font = '30px Georgia, serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, 6, 32);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.minFilter = THREE.LinearFilter;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.0075), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false }));
+  m.renderOrder = 31; return m;
+}
+const buttons = [];
+function addButton(x, y, label, isActive, onPress, small = false) {
+  const b = { label, isActive, onPress, hover: false, wasIn: false, lastState: null };
+  b.mesh = new THREE.Mesh(new THREE.PlaneGeometry(BTN_W, BTN_H), new THREE.MeshBasicMaterial({ transparent: true, depthTest: false }));
+  b.mesh.position.set(x, y, 0.001); b.mesh.renderOrder = 31; b.small = small;
+  menu.add(b.mesh); buttons.push(b); return b;
+}
+{
+  const panelW = 3 * BTN_W + 2 * GAP + 0.012, rows = [];
+  const row = (title, items, y) => {
+    const h = makeHeader(title); h.position.set(-panelW / 2 + 0.036, y + BTN_H * 0.5 + 0.006, 0.001); menu.add(h);
+    const total = items.length * BTN_W + (items.length - 1) * GAP;
+    items.forEach((it, k) => addButton(-total / 2 + BTN_W / 2 + k * (BTN_W + GAP), y, it[0], it[1], it[2], it[3]));
+  };
+  const y0 = 0.05, step = BTN_H + 0.013;
+  row('SCENE', [
+    ['Globe', () => MODE === 'globe', () => setMode('globe')],
+    ['Cube', () => MODE === 'cube', () => setMode('cube')],
+    ['Immersive', () => MODE === 'immersive', () => setMode('immersive'), true],
+  ], y0);
+  row('PINCH', [
+    ['Whirl', () => FX.pinch === 'whirl', () => setPinch('whirl')],
+    ['Gather', () => FX.pinch === 'gather', () => setPinch('gather')],
+    ['Scatter', () => FX.pinch === 'scatter', () => setPinch('scatter')],
+  ], y0 - step);
+  row('EFFECTS', [
+    ['Speed', () => FX.accelerate, () => toggleFX('accelerate')],
+    ['Mist', () => FX.mist, () => toggleFX('mist')],
+    ['Sun ↑', () => FX.sunUp, () => toggleFX('sunUp')],
+  ], y0 - 2 * step);
+  row('', [
+    ['Recentre', () => false, () => recentreGlobe(), true],
+    ['Exit XR', () => false, () => { if (xrSession) xrSession.end(); }, true],
+  ], y0 - 3 * step);
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(panelW, 4 * step + 0.02), new THREE.MeshBasicMaterial({ color: 0x0f1626, transparent: true, opacity: 0.55, depthTest: false }));
+  bg.position.set(0, y0 - 1.5 * step - 0.002, -0.001); bg.renderOrder = 30; menu.add(bg);
+}
+function syncMenu() {
+  for (const b of buttons) {
+    const st = (b.isActive() ? 'a' : '-') + (b.hover ? 'h' : '-');
+    if (st !== b.lastState) { if (b.mesh.material.map) b.mesh.material.map.dispose(); b.mesh.material.map = makeLabelTexture(b.label, b.isActive(), b.hover, b.small); b.mesh.material.needsUpdate = true; b.lastState = st; }
+  }
+}
+function recentreGlobe() {
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); fwd.y = 0; fwd.normalize();
+  globePose.pos.copy(camera.position).add(fwd.multiplyScalar(0.6)); globePose.pos.y = camera.position.y - 0.5;
+  globePose.yaw = Math.atan2(fwd.x, fwd.z) + Math.PI; globePose.scale = 1;
+  if (isWidget()) applyMode();
+}
+const _m = new THREE.Matrix4(), _lp = new THREE.Vector3(), _gz = new THREE.Vector3(), _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
+function updateMenu(dt, now) {
+  // choose the menu hand: an active hand whose palm faces the head
+  let host = null;
+  for (const h of [hands.left, hands.right]) {
+    if (!h.active) { h.palmUp = false; continue; }
+    // open only when the palm faces the head AND the head is looking at the palm
+    const toHead = _lp.copy(camera.position).sub(h.pos).normalize();
+    const facing = h.palmN.dot(toHead);            // +1 = inner palm squarely toward the face, −1 = back of hand
+    const gaze = -_gz.set(0, 0, -1).applyQuaternion(camera.quaternion).dot(toHead);   // 1 = hand dead-centre in view
+    const fingersOpen = h.pinch < 0.5;
+    h.palmUp = h.palmUp ? (facing > 0.45 && gaze > 0.86) : (facing > 0.7 && gaze > 0.95 && fingersOpen);
+    if (h.palmUp && !host) host = h;
+  }
+  if (desktopMenu) host = 'desktop';
+  const want = !!host;
+  menuState.scale += ((want ? 1 : 0) - menuState.scale) * Math.min(1, dt * 10);
+  menu.visible = menuState.scale > 0.02;
+  if (!menu.visible) return;
+  if (host === 'desktop') {
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    menu.position.copy(camera.position).add(fwd.multiplyScalar(0.35)).add(new THREE.Vector3(0.1, -0.02, 0).applyQuaternion(camera.quaternion));
+    menu.quaternion.copy(camera.quaternion);
+  } else if (host) {
+    // float 9 cm above the palm, facing the head, upright
+    const target = _lp.copy(host.pos).add(host.palmN.clone().multiplyScalar(0.09));
+    menu.position.lerp(target, Math.min(1, dt * 14));
+    _m.lookAt(camera.position, menu.position, _up); _q.setFromRotationMatrix(_m);
+    menu.quaternion.slerp(_q, Math.min(1, dt * 12));
+  }
+  menu.scale.setScalar(menuState.scale);
+  // pointer: the other hand's index tip (or the mouse ray on desktop)
+  let ptr = null;
+  if (host !== 'desktop') { const other = host === hands.left ? hands.right : hands.left; if (other.active) ptr = other.indexTip; }
+  else if (desktopPointer) ptr = desktopPointer;
+  menu.updateMatrixWorld();
+  for (const b of buttons) {
+    let inside = false, hover = false;
+    if (ptr) {
+      _lp.copy(ptr); b.mesh.worldToLocal(_lp);
+      const inXY = Math.abs(_lp.x) < BTN_W / 2 / 1 && Math.abs(_lp.y) < BTN_H / 2;   // mesh-local, already scaled
+      hover = inXY && _lp.z > -0.02 && _lp.z < 0.06;
+      inside = inXY && _lp.z > -0.015 && _lp.z < 0.012;
+    }
+    if (inside && !b.wasIn && now - menuState.lastPoke > 0.35) { b.onPress(); menuState.lastPoke = now; }
+    b.wasIn = inside; b.hover = hover;
+  }
+  syncMenu();
+}
+
+// ── Time & interaction state ─────────────────────────────────────
+let simT = 0, timeScale = 1, energy = 0;
+
+// ── Physics helpers ──────────────────────────────────────────────
+function springBack(L, i, k, damp, dt) {
+  const i3 = i * 3;
+  L.vel[i3] += (L.home[i3] - L.pos[i3]) * k * dt;
+  L.vel[i3 + 1] += (L.home[i3 + 1] - L.pos[i3 + 1]) * k * dt;
+  L.vel[i3 + 2] += (L.home[i3 + 2] - L.pos[i3 + 2]) * k * dt;
+  L.vel[i3] *= damp; L.vel[i3 + 1] *= damp; L.vel[i3 + 2] *= damp;
+  L.pos[i3] += L.vel[i3] * dt; L.pos[i3 + 1] += L.vel[i3 + 1] * dt; L.pos[i3 + 2] += L.vel[i3 + 2] * dt;
+}
+function handForce(L, i, p, v, radius, strength, smear, dt) {
+  const i3 = i * 3;
+  const dx = L.pos[i3] - p.x, dy = L.pos[i3 + 1] - p.y, dz = L.pos[i3 + 2] - p.z;
+  const d2 = dx * dx + dy * dy + dz * dz;
+  if (d2 > radius * radius || d2 < 1e-6) return 0;
+  const d = Math.sqrt(d2), f = 1 - d / radius, s = f * strength * dt;
+  L.vel[i3] += (dx / d) * s + v.x * smear * f * dt;
+  L.vel[i3 + 1] += (dy / d) * s + v.y * smear * f * dt;
+  L.vel[i3 + 2] += (dz / d) * s + v.z * smear * f * dt;
+  return f;
+}
+function vortex(L, i, p, radius, strength, lift, dt) {
+  const i3 = i * 3;
+  const dx = L.pos[i3] - p.x, dz = L.pos[i3 + 2] - p.z, dy = L.pos[i3 + 1] - p.y;
+  const d2 = dx * dx + dz * dz + dy * dy * 0.35;
+  if (d2 > radius * radius || d2 < 1e-6) return 0;
+  const d = Math.sqrt(d2), f = Math.sin((1 - d / radius) * Math.PI);
+  const s = f * strength * dt;
+  L.vel[i3] += (-dz / d) * s - (dx / d) * s * 0.35;
+  L.vel[i3 + 2] += (dx / d) * s - (dz / d) * s * 0.35;
+  L.vel[i3 + 1] += lift * f * dt;
+  return f;
+}
+// pinch effect dispatcher: whirl / gather / scatter
+function pinchForce(L, i, h, radius, strength, lift, dt) {
+  if (FX.pinch === 'whirl') return vortex(L, i, h.localPinch, radius, strength, lift, dt);
+  if (FX.pinch === 'gather') return handForce(L, i, h.localPinch, h.localVel, radius * 1.3, -strength * 0.9, 0.6, dt);
+  return handForce(L, i, h.localPinch, h.localVel, radius * 1.2, strength * 1.1, 0.3, dt);
+}
+
+// ── Globe grab / scale / rotate ──────────────────────────────────
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
+let twoHand = null;
+
+function classifyHand(h) {
+  h.local.copy(h.pos); world.worldToLocal(h.local);
+  h.localPinch.copy(h.pinchPt); world.worldToLocal(h.localPinch);
+  _v.copy(h.prev); world.worldToLocal(_v);
+  h.localVel.copy(h.local).sub(_v);
+  if (!isWidget()) { h.inside = true; h.nearGlass = false; return; }
+  const l = h.localPinch;
+  if (MODE === 'cube') {
+    h.inside = inBox(l.x, l.y, l.z);
+    const ddx = Math.max(Math.abs(l.x) - BOX_HW, 0), ddy = Math.max(-l.y, l.y - BOX_H, 0), ddz = Math.max(BOX_ZB - l.z, l.z - BOX_ZF, 0);
+    const outside = Math.hypot(ddx, ddy, ddz) / U();
+    const insideEdge = Math.min(BOX_HW - Math.abs(l.x), Math.min(l.y, BOX_H - l.y), Math.min(BOX_ZF - l.z, l.z - BOX_ZB)) / U();
+    h.nearGlass = (!h.inside && outside < 0.07) || (h.inside && insideEdge < 0.03);
+    return;
+  }
+  const r = l.length();
+  h.inside = r < R - 0.5 && l.y > -0.5;
+  h.nearGlass = Math.abs(r - R) / U() < 0.07 && l.y > -3;
+}
+function updateGrabs() {
+  if (!isWidget()) return;
+  const L = hands.left, Rh = hands.right;
+  for (const h of [L, Rh]) {
+    if (!h.active) { h.grabbing = false; continue; }
+    const pinchStart = h.pinch > 0.7 && h.prevPinch <= 0.7;
+    if (pinchStart && h.nearGlass && !h.palmUp) { h.grabbing = true; h.grabOffset.copy(globePose.pos).sub(h.pinchPt); }
+    if (h.pinch < 0.4) h.grabbing = false;
+  }
+  if (L.grabbing && Rh.grabbing) {
+    const d = L.pinchPt.distanceTo(Rh.pinchPt);
+    const yaw = Math.atan2(Rh.pinchPt.x - L.pinchPt.x, Rh.pinchPt.z - L.pinchPt.z);
+    const mid = _v.copy(L.pinchPt).add(Rh.pinchPt).multiplyScalar(0.5);
+    if (!twoHand) twoHand = { dist: d, yaw, scale0: globePose.scale, yaw0: globePose.yaw, off: globePose.pos.clone().sub(mid) };
+    globePose.scale = THREE.MathUtils.clamp(twoHand.scale0 * d / twoHand.dist, 0.4, 3.0);
+    globePose.yaw = twoHand.yaw0 + (yaw - twoHand.yaw);
+    globePose.pos.copy(mid).add(twoHand.off);
+  } else {
+    twoHand = null;
+    const g = L.grabbing ? L : Rh.grabbing ? Rh : null;
+    if (g) globePose.pos.copy(g.pinchPt).add(g.grabOffset);
+  }
+  world.scale.setScalar(GLOBE_SCALE * globePose.scale);
+  world.position.copy(globePose.pos);
+  world.rotation.set(0, globePose.yaw, 0);
+  world.updateMatrixWorld(true);
+  const near = [L, Rh].some(h => h.active && (h.nearGlass || h.grabbing));
+  glass.material.uniforms.uGlow.value += ((near ? 1 : 0) - glass.material.uniforms.uGlow.value) * 0.2;
+  frameMat.opacity += ((near ? 0.9 : 0.35) - frameMat.opacity) * 0.2;
+  frameMat.color.lerp(near ? C(0xffb080) : C(0xfff1de), 0.2);
+}
+
+// ── Per-frame update ─────────────────────────────────────────────
+function update(realDt, now) {
+  const dt = Math.min(realDt, 0.04);
+  const u = U();
+  const active = ['left', 'right'].map(s => hands[s]).filter(h => h.active);
+  for (const h of active) { classifyHand(h); h.localVel.divideScalar(Math.max(dt, 1e-3)); }
+  updateMenu(dt, now);
+  updateGrabs();
+
+  // hands that act on the paint: not grabbing, not hosting the menu, not poking it
+  const menuOpen = menuState.scale > 0.3;
+  const paintHands = active.filter(h => !h.grabbing && !h.palmUp && !(menuOpen && (h.indexTip.distanceTo(menu.position) < 0.12)) && (MODE === 'immersive' || h.inside));
+  const stirring = paintHands.filter(h => h.pinch > 0.6);
+
+  let targetScale = 1;
+  if (FX.accelerate) for (const h of stirring) targetScale = Math.max(targetScale, 1 + 6 * THREE.MathUtils.smoothstep(h.pinch, 0.6, 1.0));
+  timeScale += (targetScale - timeScale) * Math.min(1, dt * (targetScale > timeScale ? 4 : 1.2));
+  energy += (((timeScale - 1) / 6) - energy) * Math.min(1, dt * 2);
+  simT += dt * timeScale;
+  const t = simT, amp = 1 + energy * 2.2;
+
+  sunElev += (sunElevTarget - sunElev) * Math.min(1, dt * 1.5);
+  placeSun();
+  const warm = 0.7 + (sunElev - 0.06) * 1.4 + energy * 0.35;
+  skyDome.material.uniforms.uWarm.value = warm;
+  globeSky.material.uniforms.uWarm.value = warm;
+
+  const rSweep = isWidget() ? 0.11 * u : 0.9;
+  const rStir = isWidget() ? 0.16 * u : 1.4;
+  const kF = isWidget() ? u * 0.08 : 1;
+  backWall.material.uniforms.uWarm.value = warm;
+
+  // ── Sky haze ──
+  for (let i = 0; i < SKY_N; i++) {
+    if (sky.baseAlpha[i] === 0) continue;
+    const i3 = i * 3, ph = sky.phase[i];
+    sky.rot[i] = sky.rotHome[i] + Math.sin(t * 0.15 + ph) * 0.05 * amp;
+    sky.home[i3] += Math.sin(t * 0.05 + ph) * 0.0015 * amp;
+    if (isWidget()) {
+      for (const h of paintHands) {
+        if (h.pinch > 0.6) pinchForce(sky, i, h, rStir * 1.3, 9 * kF, 0.4 * kF, dt);
+        else handForce(sky, i, h.local, h.localVel, rSweep * 1.6, 0, 1.6, dt);
+      }
+    }
+    springBack(sky, i, 2.5, 0.96, dt);
+  }
+  if (MODE === 'immersive') {
+    for (const h of paintHands) {
+      if (h.pinch > 0.6 || h.vel.lengthSq() < 0.05) continue;
+      const dir = _v.copy(h.pos).sub(camera.position).normalize();
+      if (dir.y < 0.05) continue;
+      for (let i = 0; i < SKY_N; i++) {
+        const i3 = i * 3, sx = sky.home[i3], sy = sky.home[i3 + 1], sz = sky.home[i3 + 2];
+        const dot = (sx * dir.x + sy * dir.y + sz * dir.z) / Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (dot < 0.985) continue;
+        const f = (dot - 0.985) / 0.015, sc = 36 * f * dt * 1.4;
+        sky.vel[i3] += h.vel.x * sc; sky.vel[i3 + 1] += h.vel.y * sc; sky.vel[i3 + 2] += h.vel.z * sc;
+        sky.rot[i] += h.vel.y * 0.15 * f;
+      }
+    }
+  }
+  sky.flush();
+
+  // ── Water dashes ──
+  for (let i = 0; i < WATER_N; i++) {
+    if (water.regionMask[i] === 0) continue;
+    const i3 = i * 3, ph = water.phase[i];
+    water.home[i3 + 1] = WATER_Y + 0.02 + Math.sin(t * 0.9 + ph + water.home[i3] * 0.3) * 0.012 * amp;
+    water.home[i3] += Math.sin(t * 0.2 + ph) * 0.0008 * amp;
+    water.rot[i] = water.rotHome[i] + Math.sin(t * 0.7 + ph) * 0.02 * amp;
+    for (const h of paintHands) {
+      if (h.pinch > 0.6) {
+        const f = pinchForce(water, i, h, rStir, 14 * kF * h.pinch, 1.2 * kF, dt);
+        if (f > 0) {
+          water.rot[i] += f * 0.6 * dt * timeScale;
+          water.col[i3] = Math.min(1, water.col[i3] + f * 0.05); water.col[i3 + 1] = Math.min(1, water.col[i3 + 1] + f * 0.03);
+        }
+      } else {
+        if (MODE === 'immersive' && h.pos.y > 0.9) continue;
+        const f = handForce(water, i, h.local, h.localVel, rSweep, 2.6 * kF, 1.8, dt);
+        if (f > 0) {
+          water.vel[i3 + 1] += f * 0.9 * kF * dt;
+          water.rot[i] += (Math.random() - 0.5) * f * 0.25;
+          water.col[i3] = Math.min(1, water.col[i3] + f * 0.06); water.col[i3 + 1] = Math.min(1, water.col[i3 + 1] + f * 0.04);
+        }
+      }
+    }
+    springBack(water, i, 6.0, 0.93, dt);
+    if (water.pos[i3 + 1] < WATER_Y) { water.pos[i3 + 1] = WATER_Y; water.vel[i3 + 1] *= -0.3; }
+    const lift = energy * 0.10;
+    water.col[i3] += (water.base[i3] + lift - water.col[i3]) * 0.03;
+    water.col[i3 + 1] += (water.base[i3 + 1] + lift * 0.7 - water.col[i3 + 1]) * 0.03;
+    water.col[i3 + 2] += (water.base[i3 + 2] - water.col[i3 + 2]) * 0.03;
+  }
+  water.flush();
+
+  // ── Reflection column ──
+  for (let i = 0; i < REF_N; i++) {
+    if (refl.regionMask[i] === 0) continue;
+    const i3 = i * 3, ph = refl.phase[i], z = refl.home[i3 + 2];
+    const centerX = (-z) * Math.tan(SUN_AZ) + Math.sin(t * 1.3 + ph + z * 0.4) * 0.12 * amp;
+    refl.home[i3] += (centerX + (refl.seed[i] % 1 - 0.5) * 2.0 * (0.35 + (1 - z / -R) * 1.4) - refl.home[i3]) * 0.02;
+    refl.home[i3 + 1] = WATER_Y + 0.035 + Math.sin(t * 1.1 + ph) * 0.012 * amp;
+    refl.alpha[i] = Math.min(1, refl.baseAlpha[i] * (0.9 + (sunElev - 0.06) * 0.6 + energy * 0.15));
+    for (const h of paintHands) {
+      if (h.pinch > 0.6) {
+        const f = pinchForce(refl, i, h, rStir * 1.15, 16 * kF * h.pinch, 3.0 * kF, dt);
+        if (f > 0) { refl.col[i3] = Math.min(1, refl.col[i3] + f * 0.06); refl.col[i3 + 1] = Math.min(1, refl.col[i3 + 1] + f * 0.04); }
+      } else {
+        if (MODE === 'immersive' && h.pos.y > 1.1) continue;
+        handForce(refl, i, h.local, h.localVel, rSweep * 0.8, 2.0 * kF, 1.5, dt);
+      }
+    }
+    springBack(refl, i, 5.0, 0.92, dt);
+    if (refl.pos[i3 + 1] < WATER_Y + 0.01) { refl.pos[i3 + 1] = WATER_Y + 0.01; refl.vel[i3 + 1] *= -0.2; }
+    refl.col[i3] += (refl.base[i3] - refl.col[i3]) * 0.03;
+    refl.col[i3 + 1] += (refl.base[i3 + 1] - refl.col[i3 + 1]) * 0.03;
+    refl.col[i3 + 2] += (refl.base[i3 + 2] - refl.col[i3 + 2]) * 0.03;
+  }
+  refl.flush();
+
+  // ── Silhouettes ──
+  for (let i = 0; i < SIL_N; i++) {
+    const i3 = i * 3;
+    if (sil.alpha[i] === 0) continue;
+    const near = Math.hypot(sil.home[i3], sil.home[i3 + 2]) < 30;
+    sil.pos[i3 + 1] = sil.home[i3 + 1] + (near ? Math.sin(t * 0.8 + sil.home[i3 + 2] * 0.5) * 0.02 * amp : 0);
+    sil.rot[i] = sil.rotHome[i] + (near ? Math.sin(t * 0.8 + sil.home[i3 + 2] * 0.5 + 1) * 0.03 * amp : 0);
+  }
+  sil.flush();
+
+  // ── Mist motes ──
+  if (FX.mist) {
+    for (let i = 0; i < MIST_N; i++) {
+      if (mist.regionMask[i] === 0) continue;
+      const i3 = i * 3, ph = mist.phase[i];
+      mist.home[i3] += Math.sin(t * 0.3 + ph) * 0.002 * amp;
+      mist.home[i3 + 1] += Math.cos(t * 0.23 + ph) * 0.0015 * amp;
+      mist.rot[i] += 0.002 * timeScale;
+      for (const h of paintHands) {
+        if (h.pinch > 0.6) pinchForce(mist, i, h, rStir * 1.2, 10 * kF, 2.0 * kF, dt);
+        else handForce(mist, i, h.local, h.localVel, rSweep, 2.2 * kF, 1.2, dt);
+      }
+      springBack(mist, i, 1.2, 0.95, dt);
+      mist.alpha[i] = 0.12 + Math.sin(t * 0.8 + ph) * 0.05 + energy * 0.08;
+    }
+    mist.flush();
+  }
+
+  for (const s of ['left', 'right']) {
+    const h = hands[s], d = pinchDots[s];
+    d.visible = h.active && !h.grabbing && !h.palmUp;
+    if (d.visible) { d.position.copy(h.pinchPt); d.scale.setScalar(0.35 + h.pinch * 1.0 + energy * 0.6); d.material.opacity = 0.35 + h.pinch * 0.6; }
+    h.prevPinch = h.pinch; h.wasActive = h.active;
+  }
+}
+
+// ── XR session ───────────────────────────────────────────────────
+let xrSession = null, xrRefSpace = null;
+
+async function startXR() {
+  if (!navigator.xr) { alert('WebXR not available.'); return; }
+  const wantAR = isWidget();
+  const arOK = wantAR && await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+  const vrOK = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+  if (!arOK && !vrOK) { alert('No immersive session supported here.'); return; }
+  const kind = arOK ? 'immersive-ar' : 'immersive-vr';
+  try {
+    xrSession = await navigator.xr.requestSession(kind, { requiredFeatures: ['local-floor'], optionalFeatures: ['hand-tracking', 'bounded-floor'] });
+    SESSION_KIND = kind === 'immersive-ar' ? 'ar' : 'vr';
+    xrSession.addEventListener('end', onSessionEnd);
+    await renderer.xr.setSession(xrSession);
+    xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+    if (SESSION_KIND === 'ar') renderer.setClearColor(0x000000, 0); else renderer.setClearColor(0x1a1d27, 1);
+    globePose.pos.set(0, 1.05, -0.55); globePose.yaw = 0; globePose.scale = 1;
+    applyMode();
+    panel.style.display = 'none'; panelToggle.style.display = 'none'; hud.style.display = 'block';
+    hud.innerHTML = 'Look at your palm — menu &nbsp;·&nbsp; Pinch inside — stir &amp; accelerate &nbsp;·&nbsp; Pinch the glass — move &nbsp;·&nbsp; Two hands — scale &amp; turn';
+    renderer.setAnimationLoop(xrLoop);
+  } catch (e) { alert('XR session failed: ' + e.message); }
+}
+function onSessionEnd() {
+  xrSession = null; xrRefSpace = null; SESSION_KIND = null;
+  for (const s of ['left', 'right']) { const h = hands[s]; h.active = false; h.grabbing = false; h.palmUp = false; pinchDots[s].visible = false; }
+  for (let i = 0; i < HAND_N; i++) handLayer.alpha[i] = 0;
+  handLayer.flush();
+  renderer.setClearColor(isWidget() ? 0x1a1d27 : 0x8ea3c4, 1);
+  panel.style.display = 'block'; hud.style.display = 'block'; hud.innerHTML = DESKTOP_HUD;
+  mouseHand = true;
+  renderer.setAnimationLoop(desktopLoop);
+}
+
+const _jp = new THREE.Vector3(), _wq = new THREE.Quaternion();
+const jointVec = (frame, xh, name, out) => { const j = xh.get(name); if (!j) return false; const p = frame.getJointPose(j, xrRefSpace); if (!p) return false; out.set(p.transform.position.x, p.transform.position.y, p.transform.position.z); return true; };
+function processXRHands(frame, dt) {
+  for (const s of ['left', 'right']) hands[s].active = false;
+  for (let i = 0; i < HAND_N; i++) handLayer.alpha[i] = 0;
+  if (!xrRefSpace) return;
+  for (const src of frame.session.inputSources) {
+    if (!src.hand) continue;
+    const side = src.handedness; if (side !== 'left' && side !== 'right') continue;
+    const H = hands[side], xh = src.hand;
+    const thumb = _v, index = _v2, mid = _jp;
+    if (!jointVec(frame, xh, 'wrist', H.wrist) || !jointVec(frame, xh, 'thumb-tip', thumb) || !jointVec(frame, xh, 'index-finger-tip', index)) continue;
+    jointVec(frame, xh, 'index-finger-metacarpal', H.indexMeta); jointVec(frame, xh, 'pinky-finger-metacarpal', H.pinkyMeta);
+    H.prev.copy(H.pos);
+    if (jointVec(frame, xh, 'middle-finger-phalanx-proximal', mid)) H.pos.copy(H.wrist).add(mid).multiplyScalar(0.5); else H.pos.copy(H.wrist);
+    if (!H.wasActive) H.prev.copy(H.pos);
+    if (dt > 0) { _jp.copy(H.pos).sub(H.prev).divideScalar(dt); H.vel.lerp(_jp, 0.5); }
+    H.indexTip.copy(index);
+    H.pinchPt.copy(thumb).add(index).multiplyScalar(0.5);
+    H.pinch = 1 - THREE.MathUtils.clamp((thumb.distanceTo(index) - 0.02) / 0.06, 0, 1);
+    // Palm normal, pointing OUT OF THE INNER PALM (never the back of the hand).
+    // Primary: the wrist joint's orientation. In the WebXR Hand Input joint frame,
+    // +Y points out of the back of the hand (dorsal), so the palm side is -Y.
+    // Fallback: cross product of the wrist→knuckle vectors, sign fixed per hand.
+    const wristJoint = xh.get('wrist'), wristPose = wristJoint ? frame.getJointPose(wristJoint, xrRefSpace) : null;
+    if (wristPose && wristPose.transform.orientation) {
+      const o = wristPose.transform.orientation;
+      _wq.set(o.x, o.y, o.z, o.w);
+      H.palmN.set(0, -1, 0).applyQuaternion(_wq).normalize();
+    } else {
+      jointVec(frame, xh, 'index-finger-phalanx-proximal', _v); jointVec(frame, xh, 'pinky-finger-phalanx-proximal', _v2);
+      const a = _v.sub(H.wrist), b = _v2.sub(H.wrist);
+      H.palmN.crossVectors(a, b).normalize(); if (side === 'right') H.palmN.negate();
+    }
+    H.active = true;
+    // hand visualization (every session kind)
+    const jp = handJointScratch[side], got = [];
+    JOINT_NAMES.forEach((name, ji) => { got[ji] = jointVec(frame, xh, name, jp[ji]) ? jp[ji] : null; });
+    const c = H.palmUp ? C(0xfff1de) : C(0x2a3550).lerp(C(0xff6a32), H.pinch);
+    if (SESSION_KIND === 'ar') c.lerp(C(0xffffff), 0.25);   // a touch brighter over passthrough
+    drawHand(side, got, c);
+  }
+  handLayer.flush(true);
+}
+
+// ── Loops ────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+let prevT = 0;
+const tick = () => { const t = clock.getElapsedTime(), dt = t - prevT; prevT = t; return dt; };
+
+function xrLoop(ts, frame) {
+  if (!frame) return;
+  const dt = tick();
+  processXRHands(frame, dt);
+  update(dt, clock.getElapsedTime());
+  renderer.render(scene, camera);
+}
+
+// Desktop preview
+let mouseHand = false, mouseDown = false, rightDown = false, lastMX = 0, orbit = 0;
+let desktopMenu = false, desktopPointer = null;
+const globeCentre = () => MODE === 'cube'
+  ? globePose.pos.clone().add(new THREE.Vector3(0, 0.15, -0.18).multiplyScalar(globePose.scale))
+  : globePose.pos.clone().add(new THREE.Vector3(0, 0.12 * globePose.scale, 0));
+function desktopCamera(t) {
+  if (isWidget()) {
+    const c = globeCentre(), a = orbit + Math.sin(t * 0.15) * 0.25;
+    camera.position.set(c.x + Math.sin(a) * 0.85, c.y + 0.12, c.z + Math.cos(a) * 0.85);
+    camera.lookAt(c);
+  } else {
+    camera.position.set(Math.sin(t * 0.1) * 0.08, 1.6 + Math.sin(t * 0.13) * 0.02, 0);
+    camera.lookAt(sunPos.x * 0.15, 1.9, -20);
+  }
+}
+function desktopLoop() {
+  const dt = tick(), t = clock.getElapsedTime();
+  desktopCamera(t);
+  if (mouseHand) { hands.right.pinch = mouseDown && !desktopPointer ? 1 : 0; hands.right.active = true; }
+  update(dt, t);
+  hands.right.vel.multiplyScalar(0.85);
+  renderer.render(scene, camera);
+}
+
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitPt = new THREE.Vector3();
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.25);
+const wallPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 2.2);
+renderer.domElement.addEventListener('mousemove', e => {
+  if (rightDown) { orbit += (e.clientX - lastMX) * 0.01; lastMX = e.clientX; }
+  if (!mouseHand) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  desktopPointer = null;
+  if (desktopMenu && menu.visible) {
+    const hits = raycaster.intersectObjects(buttons.map(b => b.mesh));
+    if (hits.length) { desktopPointer = hits[0].point.clone().add(new THREE.Vector3(0, 0, 0)); desktopPointer._btn = hits[0].object; }
+  }
+  let plane;
+  if (isWidget()) { const c = globeCentre(); plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.position.clone().sub(c).normalize(), c); }
+  else plane = ndc.y < -0.05 ? floorPlane : wallPlane;
+  if (raycaster.ray.intersectPlane(plane, hitPt)) {
+    const H = hands.right;
+    if (MODE === 'immersive' && hitPt.z < -6) hitPt.multiplyScalar(6 / -hitPt.z);
+    H.prev.copy(H.pos); H.pos.copy(hitPt); H.pinchPt.copy(hitPt);
+    H.vel.copy(H.pos).sub(H.prev).multiplyScalar(30);
+  }
+});
+renderer.domElement.addEventListener('mousedown', e => {
+  if (e.button === 2) { rightDown = true; lastMX = e.clientX; return; }
+  if (desktopPointer && desktopPointer._btn) { const b = buttons.find(x => x.mesh === desktopPointer._btn); if (b) { b.onPress(); syncMenu(); } return; }
+  mouseDown = true;
+});
+renderer.domElement.addEventListener('mouseup', e => { if (e.button === 2) rightDown = false; else mouseDown = false; });
+renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('keydown', e => {
+  if (e.key === 'Shift') sunElevTarget = 0.4;
+  if (e.key === 'm' || e.key === 'M') { desktopMenu = !desktopMenu; syncPanel(); }
+});
+window.addEventListener('keyup', e => { if (e.key === 'Shift') sunElevTarget = FX.sunUp ? 0.42 : 0.155; });
+
+// ── UI: on-page control panel (shares state with the 3D hand menu) ──
+const DESKTOP_HUD = 'M — hand menu &nbsp;·&nbsp; Move the mouse — sweep &nbsp;·&nbsp; Hold click — pinch &nbsp;·&nbsp; Right-drag — orbit &nbsp;·&nbsp; Shift — lift the sun';
+function setMode(m) { MODE = m; renderer.setClearColor(isWidget() ? 0x1a1d27 : 0x8ea3c4, 1); applyMode(); syncPanel(); }
+function setPinch(v) { FX.pinch = v; syncMenu(); syncPanel(); }
+function toggleFX(k) {
+  FX[k] = !FX[k];
+  if (k === 'mist') mist.mesh.visible = FX.mist;
+  if (k === 'sunUp') sunElevTarget = FX.sunUp ? 0.42 : 0.155;
+  syncMenu(); syncPanel();
+}
+function syncPanel() {
+  panel.querySelectorAll('.pb[data-act]').forEach(b => {
+    const a = b.dataset.act, v = b.dataset.v;
+    let on = false;
+    if (a === 'mode') on = MODE === v; else if (a === 'pinch') on = FX.pinch === v;
+    else if (a === 'menu') on = desktopMenu; else if (a in FX) on = !!FX[a];
+    b.classList.toggle('on', on);
+  });
+  xrBtn.textContent = xrBtn.disabled ? xrBtn.textContent : (isWidget() ? 'ENTER AR / VR' : 'ENTER VR');
+}
+panel.addEventListener('click', e => {
+  const b = e.target.closest('.pb[data-act]'); if (!b) return;
+  const a = b.dataset.act, v = b.dataset.v;
+  if (a === 'mode') setMode(v);
+  else if (a === 'pinch') setPinch(v);
+  else if (a === 'menu') { desktopMenu = !desktopMenu; syncPanel(); }
+  else if (a === 'recentre') recentreGlobe();
+  else toggleFX(a);
+});
+document.getElementById('panelClose').addEventListener('click', () => { panel.style.display = 'none'; panelToggle.style.display = 'block'; });
+panelToggle.addEventListener('click', () => { panel.style.display = 'block'; panelToggle.style.display = 'none'; });
+xrBtn.addEventListener('click', startXR);
+window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+(async () => {
+  if (!navigator.xr) { xrBtn.disabled = true; xrBtn.textContent = 'WebXR Unavailable'; return; }
+  const ar = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+  const vr = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+  if (!ar && !vr) { xrBtn.disabled = true; xrBtn.textContent = 'XR Not Supported'; }
+})();
+
+renderer.setClearColor(0x1a1d27, 1);
+applyMode();
+syncPanel();
+hud.style.display = 'block'; hud.innerHTML = DESKTOP_HUD;
+mouseHand = true;
+renderer.setAnimationLoop(desktopLoop);
+</script>
+</body>
+</html>
