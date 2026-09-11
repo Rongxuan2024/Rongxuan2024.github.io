@@ -827,10 +827,10 @@
    ['ring-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal'], ['pinky-finger-metacarpal', 'wrist']].forEach(b => BONES.push(b));
 
   const jointGeo = new THREE.SphereGeometry(1, 10, 8);
-  const jointMat = new THREE.MeshBasicMaterial({ color: 0xf6d76b, transparent: true, depthTest: false, depthWrite: false });
-  const tipMat = new THREE.MeshBasicMaterial({ color: 0xfbf1c2, transparent: true, depthTest: false, depthWrite: false });
-  const boneMat = new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false });
-  const pinchMat = new THREE.MeshBasicMaterial({ color: 0x5b93d6, transparent: true, opacity: 0.35, depthTest: false, depthWrite: false });
+  const jointMat = new THREE.MeshBasicMaterial({ color: 0xf6d76b, transparent: true, opacity: 0.96, depthTest: true, depthWrite: true });
+  const tipMat = new THREE.MeshBasicMaterial({ color: 0xfbf1c2, transparent: true, opacity: 0.96, depthTest: true, depthWrite: true });
+  const boneMat = new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false });
+  const pinchMat = new THREE.MeshBasicMaterial({ color: 0x5b93d6, transparent: true, opacity: 0.35, depthTest: true, depthWrite: false });
   const hands = [];
   const tmpM = new THREE.Matrix4();
   const tmpS = new THREE.Vector3();
@@ -849,7 +849,7 @@
     bones.frustumCulled = false;
     const pinchRing = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0025, 8, 24), pinchMat);
     pinchRing.visible = false;
-    joints.renderOrder = 30; tips.renderOrder = 31; bones.renderOrder = 29; pinchRing.renderOrder = 32;   // hands sit above the menu
+    joints.renderOrder = 3; tips.renderOrder = 4; bones.renderOrder = 2; pinchRing.renderOrder = 5;
     scene.add(joints, tips, bones, pinchRing);
 
     const state = { hand, joints, tips, bones, bonePos, pinchRing, vortex: null, handedness: 'right', tracked: false };
@@ -930,20 +930,17 @@
   /* ---------- the hand menu: turn a palm toward your face, poke it with the other hand ---------- */
   const menu = new THREE.Group();
   menu.visible = false;
-  menu.renderOrder = 20;
   scene.add(menu);
   const MENU_W = 0.19, MENU_H = 0.175;
-  // Render queue: everything in the menu is transparent + depth-free so it sorts by renderOrder alone —
-  // panel (20) under frame (21) under buttons (22) — and the hands (30) always draw over it, so the poking finger stays visible.
-  const panelMat = new THREE.MeshBasicMaterial({ color: 0x0a1637, transparent: true, opacity: 0.86, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  // Depth-tested in the same scene: closer joints occlude the panel, the panel occludes the palm behind it.
+  const panelMat = new THREE.MeshBasicMaterial({ color: 0x0a1637, transparent: true, opacity: 0.86, depthTest: true, depthWrite: true, side: THREE.DoubleSide });
   const panel = new THREE.Mesh(new THREE.PlaneGeometry(MENU_W, MENU_H), panelMat);
-  panel.renderOrder = 20;
   menu.add(panel);
   const frame = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(-MENU_W / 2, -MENU_H / 2, 0), new THREE.Vector3(MENU_W / 2, -MENU_H / 2, 0),
     new THREE.Vector3(MENU_W / 2, MENU_H / 2, 0), new THREE.Vector3(-MENU_W / 2, MENU_H / 2, 0)]),
-    new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
-  frame.renderOrder = 21;
+    new THREE.LineBasicMaterial({ color: 0xa9c8e8, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false }));
+  frame.position.z = 0.001;
   menu.add(frame);
 
   function labelTexture(text, state, small, aspect) {
@@ -963,9 +960,9 @@
   const menuButtons = [];
   function addButton(label, x, y, w, h, small, onPress, isActive) {
     const tex = { idle: labelTexture(label, 'idle', small, w / h), hover: labelTexture(label, 'hover', small, w / h), active: labelTexture(label, 'active', small, w / h) };
-    const mat = new THREE.MeshBasicMaterial({ map: tex.idle, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ map: tex.idle, transparent: true, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-    m.position.set(x, y, 0.002); m.renderOrder = 22;
+    m.position.set(x, y, 0.003);
     menu.add(m);
     menuButtons.push({ mesh: m, tex, x, y, w, h, onPress, isActive, wasIn: false, state: '' });
   }

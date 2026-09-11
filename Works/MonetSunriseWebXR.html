@@ -246,7 +246,7 @@ const fsStroke = `
   }`;
 
 class StrokeLayer {
-  constructor(count, { blending = THREE.NormalBlending, renderOrder = 0, depthTest = true, parent = world } = {}) {
+  constructor(count, { blending = THREE.NormalBlending, renderOrder = 0, depthTest = true, depthWrite = false, parent = world } = {}) {
     this.n = count;
     this.home = new Float32Array(count * 3); this.pos = new Float32Array(count * 3);
     this.vel = new Float32Array(count * 3); this.col = new Float32Array(count * 3);
@@ -268,7 +268,7 @@ class StrokeLayer {
     g.instanceCount = count;
     const m = new THREE.ShaderMaterial({
       vertexShader: vsStroke, fragmentShader: fsStroke, uniforms: { uHemiFade: { value: 0 } },
-      transparent: true, depthWrite: false, depthTest, blending, side: THREE.DoubleSide,
+      transparent: true, depthWrite, depthTest, blending, side: THREE.DoubleSide,
     });
     this.mesh = new THREE.Mesh(g, m);
     this.mesh.frustumCulled = false; this.mesh.renderOrder = renderOrder;
@@ -533,7 +533,7 @@ const BONES = [];
 [[1,5],[5,10],[10,15],[15,20]].forEach(b => BONES.push(b));   // palm web across the metacarpals
 const NJ = JOINT_NAMES.length, NB = BONES.length;
 const HAND_N = (NJ + NB) * 2;
-const handLayer = new StrokeLayer(HAND_N, { renderOrder: 6, depthTest: false, parent: scene });
+const handLayer = new StrokeLayer(HAND_N, { renderOrder: 8, depthTest: true, depthWrite: true, parent: scene });
 for (let i = 0; i < HAND_N; i++) handLayer.set(i, 0, -50, 0, C(0x2a3550), 0.02, 0.014, 0, 0);
 handLayer.flush(true);
 const JOINT_SIZE = JOINT_NAMES.map(n => n === 'wrist' ? 0.016 : n.endsWith('tip') ? 0.011 : 0.008);
@@ -565,8 +565,8 @@ const handJointScratch = { left: JOINT_NAMES.map(() => new THREE.Vector3()), rig
 
 const pinchDots = {};
 for (const s of ['left', 'right']) {
-  const d = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff4d1c, transparent: true, opacity: 0.9, depthTest: false }));
-  d.renderOrder = 20; d.visible = false; scene.add(d); pinchDots[s] = d;
+  const d = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff4d1c, transparent: true, opacity: 0.9, depthTest: true, depthWrite: true }));
+  d.renderOrder = 9; d.visible = false; scene.add(d); pinchDots[s] = d;
 }
 
 // ── Hand menu ────────────────────────────────────────────────────
@@ -591,20 +591,20 @@ function makeHeader(text) {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64;
   const g = cv.getContext('2d'); g.fillStyle = 'rgba(255,241,222,0.55)'; g.font = '30px Georgia, serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, 6, 32);
   const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.minFilter = THREE.LinearFilter;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.0075), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false }));
-  m.renderOrder = 31; return m;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.0075), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: true, depthWrite: false }));
+  m.renderOrder = 7; return m;
 }
 const buttons = [];
 function addButton(x, y, label, isActive, onPress, small = false) {
   const b = { label, isActive, onPress, hover: false, wasIn: false, lastState: null };
-  b.mesh = new THREE.Mesh(new THREE.PlaneGeometry(BTN_W, BTN_H), new THREE.MeshBasicMaterial({ transparent: true, depthTest: false }));
-  b.mesh.position.set(x, y, 0.001); b.mesh.renderOrder = 31; b.small = small;
+  b.mesh = new THREE.Mesh(new THREE.PlaneGeometry(BTN_W, BTN_H), new THREE.MeshBasicMaterial({ transparent: true, depthTest: true, depthWrite: false }));
+  b.mesh.position.set(x, y, 0.003); b.mesh.renderOrder = 7; b.small = small;
   menu.add(b.mesh); buttons.push(b); return b;
 }
 {
   const panelW = 3 * BTN_W + 2 * GAP + 0.012, rows = [];
   const row = (title, items, y) => {
-    const h = makeHeader(title); h.position.set(-panelW / 2 + 0.036, y + BTN_H * 0.5 + 0.006, 0.001); menu.add(h);
+    const h = makeHeader(title); h.position.set(-panelW / 2 + 0.036, y + BTN_H * 0.5 + 0.006, 0.003); menu.add(h);
     const total = items.length * BTN_W + (items.length - 1) * GAP;
     items.forEach((it, k) => addButton(-total / 2 + BTN_W / 2 + k * (BTN_W + GAP), y, it[0], it[1], it[2], it[3]));
   };
@@ -628,8 +628,8 @@ function addButton(x, y, label, isActive, onPress, small = false) {
     ['Recentre', () => false, () => recentreGlobe(), true],
     ['Exit XR', () => false, () => { if (xrSession) xrSession.end(); }, true],
   ], y0 - 3 * step);
-  const bg = new THREE.Mesh(new THREE.PlaneGeometry(panelW, 4 * step + 0.02), new THREE.MeshBasicMaterial({ color: 0x0f1626, transparent: true, opacity: 0.55, depthTest: false }));
-  bg.position.set(0, y0 - 1.5 * step - 0.002, -0.001); bg.renderOrder = 30; menu.add(bg);
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(panelW, 4 * step + 0.02), new THREE.MeshBasicMaterial({ color: 0x0f1626, transparent: true, opacity: 0.55, depthTest: true, depthWrite: true }));
+  bg.position.set(0, y0 - 1.5 * step - 0.002, 0); bg.renderOrder = 6; menu.add(bg);
 }
 function syncMenu() {
   for (const b of buttons) {

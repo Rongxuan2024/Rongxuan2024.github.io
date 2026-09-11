@@ -30,6 +30,15 @@
             text-decoration: none;
         }
 
+        a.vibexr-card,
+        a.vibexr-card:hover {
+            cursor: url('../Resources/common/PinchCursor.png') 1 1, pointer;
+        }
+
+        a.vibexr-card:active {
+            cursor: url('../Resources/common/PinchedCursor.png') 1 1, pointer;
+        }
+
         a.vibexr-card:hover {
             border-color: #cfcfcf;
         }
@@ -40,6 +49,7 @@
             color: #0066cc;
             font-size: 0.88rem;
             font-weight: 600;
+            cursor: inherit;
         }
 
         .vibexr-card video {
@@ -49,6 +59,8 @@
             object-fit: cover;
             background: #111;
             display: block;
+            pointer-events: none;
+            cursor: inherit;
         }
 
         .vibexr-meta {
